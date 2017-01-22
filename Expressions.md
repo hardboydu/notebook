@@ -77,3 +77,11 @@ Now, as we know the precedence of the operators, we can now evaluate the express
 **N.B: We use Associativity of the operators only to resolve conflict between operators of same priority.**
 
 **注意：我们使用操作符的结合律只为了解决相同优先级的操作符之间的冲突**
+
+Due to above mentioned problem of considering operators' Priority and Associativity while evaluating an expression using infix notation, we use prefix and postfix notations. Both prefix and postfix notations have an advantage over infix that while evaluating an expression in prefix or postfix form we need not consider the Priority and Associativity of the operators. E.g. x/y*z becomes */xyz in prefix and xy/z* in postfix. Both prefix and postfix notations make Expression Evaluation a lot easier. (we will discuss this in detail, later in this tutorial)
+
+由于上述问题，在求解中缀表达式时需要考虑到操作符的优先级和结合律，所以我们使用前缀表示和后缀表示。对于中缀表示法来说，前缀表示和后缀表示的优势就是在求解表达式时不用考虑操作符的优先级和结合律。例如 x / y * z 前缀表达式为 */xyz，后缀表达式为 xy/z*。前缀表示和后缀表示可以使表达式求解变得非常容易。（接下来我们会详细讨论）
+
+But it is not easy to remember and manually write expressions in prefix or postfix form e.g. which one of following equations is easy to remember (x+y)/z*a (Infix) or xy+z/a* (Postfix)?
+
+但是前缀表示和后缀表示不是很容易记忆和手写，例如可以比较下边两个表达式那个容易记忆 (x + y) / z * a（中缀表示）或者 xy+z/a*（后缀表示）？
