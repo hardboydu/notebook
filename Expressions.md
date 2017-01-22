@@ -46,5 +46,34 @@ An Algebraic Expression can be represented using three different notations:
  * **INFIX**: From our schools times we have been familiar with the expressions in which operands surround the operator, e.g. x+y, 6*3 etc this way of writing the Expressions is called infix notation.
  * **中缀表示** ：操作符在操作数的两边，在学校时我们已经很熟悉这种方法，例如 x + y、6 * 3等等，这种书写表达式的方法叫做中缀表示法
  * **PREFIX**: Prefix notation also Known as Polish notation, is a symbolic logic invented by Polish mathematician Jan Lukasiewicz in the 1920's. In the prefix notation, as the name only suggests, operator comes before the operands, e.g. +xy, *+xyz etc.
- * **前缀表示**：前缀表示也叫做波兰表示法，它是波兰数学家Jan Lukasiewicz在20世纪20年代发明的一种符号逻辑，正如名字所定义的
+ * **前缀表示**：前缀表示也叫做波兰表示法，它是波兰数学家Jan Lukasiewicz在20世纪20年代发明的一种符号逻辑，正如名字所定义的那样，前缀表示的操作符在操作数之前，例如+xy，*+xyz等等。
  * **POSTFIX**: Postfix notation are also Known as Reverse Polish notation. They are different from the infix and prefix notations in the sense that in the postfix notation, operator comes after the operands, e.g. xy+, xyz+* etc.
+ * **后缀表示**：后缀表示也可以叫做逆波兰表示法，它与中缀和前缀表示法不同，后缀表示的操作符在操作数的后边，例如xy+、xyz+*等等。
+
+Now, the obvious question that comes in our mind is, Why to use these weird looking PREFIX and POSTFIX notations when we have a sweet and simple INFIX notation?
+
+现在在我们心里有个明显的问题，为什么要用看起来很奇怪的前缀表示和后缀表示，而不用我们熟悉和简单的中缀表示。
+
+To our surprise INFIX notations are not as simple as they seem specially while evaluating them. To evaluate an infix expression we need to consider Operators’ Priority and Associativity.
+
+在求解中缀表达式并没有那么简单，求解中缀表达式需要考虑操作符的优先级和结合律。
+
+For example, will expression 3+5*4 evaluate to 32 i.e. (3+5)*4 or to 23 i.e. 3+(5*4). To solve this problem Precedence or Priority of the operators were defined. Operator precedence governs evaluation order. An operator with higher precedence is applied before an operator with lower precedence.
+
+例如，表达式 3 + 5 * 4 的解为32，即：(3 + 5) * 4 或者为 23，即：3 + (5 * 4)。在解决这个问题之前，需要定义操作符的优先级。操作符优先级规定了求解顺序。高优先级操作符先求解，低优先级操作符后求解。
+
+Following figure shows operator Precedence in descending order.
+
+下图展示了操作符优先级的逆序表示
+
+Now, as we know the precedence of the operators, we can now evaluate the expression 3+5*4 as 23. But wait, it doesn't end here what about the expression 6/3*2? Will this expression evaluate to 4 i.e. (6/3)*2 or to 1 i.e. 6/(3*2).As both * and the / have same priorities, to solve this conflict, we now need to use Associativity of the operators. Operator Associativity governs evaluation order of the operators of same priority. For an operator with left-Associativity, evaluation is from left to right and for an operator with right-Associativity; evaluation is from right to left.
+
+现在，我们知道了操作符的优先级，我们现在可以求解表达式 3 + 5 * 4 为 23。等一下，还没结束，对于表达式 6 / 3 * 2，可以求解成4，即：(6 / 3) * 2，求解成1，即：6 / (3 *2) 。* 和 / 有相同的优先级，要解决这个冲突，我们需要使用操作符的结合律。操作符的结合律规定了相同优先级的操作符的求解顺序。左相关的操作符，求解顺序从左到右，对于右相关的操作符，求解顺序从右到左。
+
+*, /, +, - have left Associativity. So the expression will evaluate to 4 and not 1.
+
+*、/、+、-都是左相关的，所以上边的表达式解为4而不是1.
+
+**N.B: We use Associativity of the operators only to resolve conflict between operators of same priority.**
+
+**注意：我们使用操作符的结合律只为了解决相同优先级的操作符之间的冲突**
