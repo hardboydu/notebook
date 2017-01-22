@@ -150,7 +150,7 @@ Suppose we want to convert 2*3/(2-1)+5*(4-1) into Postfix form, following table 
 | -            | +*(-           | 23*21-/54          |
 | 1            | +*(-           | 23*21-/541         |
 | )            | +*             | 23*21-/541-        |
-|              | Empty          | 23*21-/541-*+      |
+|              | Empty          | 23\*21-/541-\*+    |
 
 So, the Postfix Expression is 23*21-/541-*+
 
@@ -163,3 +163,45 @@ Refer program #1 for infix to postfix Conversion
 ### Converting Expression from Infix to Prefix using STACK
 
 It is a bit trickier algorithm, in this algorithm we first reverse input expression so that a+b*c will become c*b+a and then we do the conversion and then again output string is reversed. Doing this has an advantage that except for some minor modifications algorithm for Infix->Prefix remains almost same as the one for Infix->Postfix.
+
+这是一个有点棘手的算法，在这个算法里，我们首先要反转输入的表达式，例如 a+b*c 会被转换成 c*b+a，然后再进行转换，最后输出的字符串是反向的。这样做的好处是从中缀转后缀算法修改成中缀转前缀算法，不用做什么修改。
+
+**Algorithm**
+ 1. Reverse the input string.
+ 2. Examine the next element in the input.
+ 3. If it is operand, add it to output string.
+ 4. If it is Closing parenthesis, push it on stack.
+ 5. If it is an operator, then
+   1. If stack is empty, push operator on stack.
+   2. If the top of stack is closing parenthesis, push operator on stack.
+   3. If it has same or higher priority than the top of stack, push operator on stack.
+   4. Else pop the operator from the stack and add it to output string, repeat step 5.
+ 6. If it is a opening parenthesis, pop operators from stack and add them to output string until a closing parenthesis is encountered. Pop and discard the closing parenthesis.
+ 7. If there is more input go to step 2
+ 8. If there is no more input, unstack the remaining operators and add them to output string.
+ 9. Reverse the output string.
+
+
+
+| Char Scanned | Stack Contents(Top on right) | Prefix Expression(right to left) |
+|--------------|------------------------------|----------------------------------|
+|              |                              |                                  |
+| )            | )                            |                                  |
+| 1            | )                            | 1                                |
+| -            | )-                           | 1                                |
+| 4            | )-                           | 14                               |
+| (            | Empty                        | 14-                              |
+| *            | *                            | 14-                              |
+| 5            | *                            | 14-5                             |
+| +            | +                            | 14-5*                            |
+| )            | +)                           | 14-5*                            |
+| 1            | +)                           | 14-5*1                           |
+| -            | +)-                          | 14-5*1                           |
+| 2            | +)-                          | 14-5*12                          |
+| (            | +                            | 14-5*12-                         |
+| /            | +/                           | 14-5*12-                         |
+| 3            | +/                           | 14-5*12-3                        |
+| *            | +/*                          | 14-5*12-3                        |
+| 2            | +/*                          | 14-5*12-32                       |
+|              | Empty                        | 14-5\*12-32\*/+                  |
+
