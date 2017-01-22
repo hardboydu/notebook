@@ -85,3 +85,81 @@ Due to above mentioned problem of considering operators' Priority and Associativ
 But it is not easy to remember and manually write expressions in prefix or postfix form e.g. which one of following equations is easy to remember (x+y)/z*a (Infix) or xy+z/a* (Postfix)?
 
 但是前缀表示和后缀表示不是很容易记忆和手写，例如可以比较下边两个表达式那个容易记忆 (x + y) / z * a（中缀表示）或者 xy+z/a*（后缀表示）？
+
+So, what is actually done is expression is scanned from user in infix form; it is converted into prefix or postfix form and then evaluated without considering the parenthesis and priority of the operators.
+
+所以我们实际上要做的就是扫描用户以中缀表示的表达式，将其转换成前缀或后缀形式，然后求解时就不用考虑括号和运算符的优先级了。
+
+Now let us move on the programming part, How to convert an expression from one notation to another? Well there are two ways to convert expression from one notation to another. First one uses **Stack** and second method uses **Expression trees**.
+
+现在，让我们转移到编程部分，怎样将表达式从一种形式转换到另一种？有两种方法转换表达式从一种形式转换成另一种。第一种方法是使用**堆栈**，第二种方法是使用**表达式树**。
+
+As there are 3 notations namely prefix, infix, postfix , there are a total of 6 conversions that can be done ,i.e. infix -> prefix, infix -> postfix, prefix -> infix, prefix -> postfix, postfix -> prefix, postfix -> infix.
+
+有三种表示方法，前缀表示，中缀表示，后缀表示，有六种转换方法，中缀->前缀、中缀->后缀、前缀->中缀、前缀->后缀、后缀->前缀、后缀->中缀。
+
+For the first 2 conversions we will be using stack and for remaining 6 conversions we will be using Binary Expression Trees.
+
+前两种转换方法使用堆栈，剩余的使用二叉表达式树。
+
+To convert an expression from infix to prefix and postfix, we are going to use stack. Those who do not know what is a stack, here are a few words about it. Stack is a special type of data structure in which items are removed in reverse order from that they are added. Stack follows Last In First Out (LIFO) pattern. Adding an element to stack is called PUSH and removing an item from stack is called POP.
+
+将表达式从中缀表示转化成前缀和后缀，我们将会使用堆栈，对于不了解堆栈的读者，接下来我会简短的描述它，堆栈是一种特殊类型的数据结构，删除元素的顺序和添加顺序相反，堆栈遵循后进先出（LIFO）模式。添加一个元素调用PUSH删除一个元素调用POP。
+
+### Converting Expression from Infix to Postfix using STACK
+
+To convert an expression from infix to postfix, we are going to use stack.
+
+将一个表达式从中缀表示转换成后缀表示，我们将使用堆栈。
+
+**Algorithm**
+ 1. Examine the next element in the input. 检查下一个输入的元素
+ 2. If it is operand, output it. 如果是操作数，输出
+ 3. If it is opening parenthesis, push it on stack. 如果是左括号，PUSH到堆栈
+ 4. If it is an operator, then 如果是操作符，则
+   1. If stack is empty, push operator on stack. 如果堆栈是空的，PUSH操作符到堆栈
+   2. If the top of stack is opening parenthesis, push operator on stack. 如果栈顶是左括号，PUSH操作符到堆栈
+   3. If it has higher priority than the top of stack, push operator on stack. 如果操作符的优先级大于栈顶的操作符，PUSH操作符到堆栈。
+   4. Else pop the operator from the stack and output it, repeat step 4. 其他情况，从堆栈POP出操作符并输出，然后跳到步骤4。
+ 5. If it is a closing parenthesis, pop operators from stack and output them until an opening parenthesis is encountered. pop and discard the opening parenthesis. 如果是右括号，从堆栈POP出操作符并输出，直到遇到左括号，POP出左括号并抛弃。
+ 6. If there is more input go to step 1. 如果有输入，跳到步骤1
+ 7. If there is no more input, unstack the remaining operators to output. 如果没有输入，将堆栈剩余的操作符POP，并输出。
+
+**Example**
+
+Suppose we want to convert 2*3/(2-1)+5*(4-1) into Postfix form, following table shows how it works:
+
+我们将表达式 2*3/(2-1)+5*(4-1) 转换到后缀表示，下边的表格描述了详细过程：
+
+| Char Scanned | Stack Contents | Postfix Expression |
+|--------------|----------------|--------------------|
+| 2            | Empty          | 2                  |
+| *            | *              | 2                  |
+| 3            | *              | 23                 |
+| /            | /              | 23*                |
+| (            | /(             | 23*                |
+| 2            | /(             | 23*2               |
+| -            | /(-            | 23*2               |
+| 1            | /(-            | 23*21              |
+| )            | /              | 23*21-             |
+| +            | +              | 23*21-/            |
+| 5            | +              | 23*21-/5           |
+| *            | +*             | 23*21-/5           |
+| (            | +*(            | 23*21-/5           |
+| 4            | +*(            | 23*21-/54          |
+| -            | +*(-           | 23*21-/54          |
+| 1            | +*(-           | 23*21-/541         |
+| )            | +*             | 23*21-/541-        |
+|              | Empty          | 23*21-/541-*+      |
+
+So, the Postfix Expression is 23*21-/541-*+
+
+最终，后缀表达式为 23*21-/541-*+
+
+Refer program #1 for infix to postfix Conversion
+
+程序1 为中缀转后缀
+
+### Converting Expression from Infix to Prefix using STACK
+
+It is a bit trickier algorithm, in this algorithm we first reverse input expression so that a+b*c will become c*b+a and then we do the conversion and then again output string is reversed. Doing this has an advantage that except for some minor modifications algorithm for Infix->Prefix remains almost same as the one for Infix->Postfix.
