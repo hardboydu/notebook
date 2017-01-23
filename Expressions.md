@@ -117,10 +117,10 @@ To convert an expression from infix to postfix, we are going to use stack.
  2. If it is operand, output it. 如果是操作数，输出
  3. If it is opening parenthesis, push it on stack. 如果是左括号，PUSH到堆栈
  4. If it is an operator, then 如果是操作符，则
-   1. If stack is empty, push operator on stack. 如果堆栈是空的，PUSH操作符到堆栈
-   2. If the top of stack is opening parenthesis, push operator on stack. 如果栈顶是左括号，PUSH操作符到堆栈
-   3. If it has higher priority than the top of stack, push operator on stack. 如果操作符的优先级大于栈顶的操作符，PUSH操作符到堆栈。
-   4. Else pop the operator from the stack and output it, repeat step 4. 其他情况，从堆栈POP出操作符并输出，然后跳到步骤4。
+ 	1. If stack is empty, push operator on stack. 如果堆栈是空的，PUSH操作符到堆栈
+	2. If the top of stack is opening parenthesis, push operator on stack. 如果栈顶是左括号，PUSH操作符到堆栈
+	3. If it has higher priority than the top of stack, push operator on stack. 如果操作符的优先级大于栈顶的操作符，PUSH操作符到堆栈。
+	4. Else pop the operator from the stack and output it, repeat step 4. 其他情况，从堆栈POP出操作符并输出，然后跳到步骤4。
  5. If it is a closing parenthesis, pop operators from stack and output them until an opening parenthesis is encountered. pop and discard the opening parenthesis. 如果是右括号，从堆栈POP出操作符并输出，直到遇到左括号，POP出左括号并抛弃。
  6. If there is more input go to step 1. 如果有输入，跳到步骤1
  7. If there is no more input, unstack the remaining operators to output. 如果没有输入，将堆栈剩余的操作符POP，并输出。
