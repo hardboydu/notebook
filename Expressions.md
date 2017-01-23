@@ -167,25 +167,29 @@ It is a bit trickier algorithm, in this algorithm we first reverse input express
 这是一个有点棘手的算法，在这个算法里，我们首先要反转输入的表达式，例如 a+b*c 会被转换成 c*b+a，然后再进行转换，最后输出的字符串是反向的。这样做的好处是从中缀转后缀算法修改成中缀转前缀算法，不用做什么修改。
 
 **Algorithm**
- 1. Reverse the input string.
- 2. Examine the next element in the input.
- 3. If it is operand, add it to output string.
- 4. If it is Closing parenthesis, push it on stack.
- 5. If it is an operator, then
-   1. If stack is empty, push operator on stack.
-   2. If the top of stack is closing parenthesis, push operator on stack.
-   3. If it has same or higher priority than the top of stack, push operator on stack.
-   4. Else pop the operator from the stack and add it to output string, repeat step 5.
- 6. If it is a opening parenthesis, pop operators from stack and add them to output string until a closing parenthesis is encountered. Pop and discard the closing parenthesis.
- 7. If there is more input go to step 2
- 8. If there is no more input, unstack the remaining operators and add them to output string.
- 9. Reverse the output string.
+ 1. Reverse the input string. 反转字符串
+ 2. Examine the next element in the input. 检查下一个输入的元素
+ 3. If it is operand, add it to output string. 如果是操作数，添加到输出字符串
+ 4. If it is Closing parenthesis, push it on stack. 如果是右括号，PUSH到堆栈
+ 5. If it is an operator, then 如果是操作符
+   1. If stack is empty, push operator on stack. 如果堆栈是空的，PUSH操作符到堆栈
+   2. If the top of stack is closing parenthesis, push operator on stack. 如果栈顶是右括号，PUSH操作符到堆栈
+   3. If it has same or higher priority than the top of stack, push operator on stack. 如果操作符优先级大于栈顶的操作符，PUSH操作符到栈顶
+   4. Else pop the operator from the stack and add it to output string, repeat step 5. 以上三个条件都不满足，则从堆栈POP操作符并添加到输出字符串，然后重复第5步。
+ 6. If it is a opening parenthesis, pop operators from stack and add them to output string until a closing parenthesis is encountered. Pop and discard the closing parenthesis. 如果是左括号，则从堆栈中POP操作符并添加到输出字符串，直到遇到右括号，最后将左括号POP出堆栈并丢弃。
+ 7. If there is more input go to step 2. 如果还有输入，跳转到第2步。
+ 8. If there is no more input, unstack the remaining operators and add them to output string.如果没有输入，则把堆栈中剩余的操作符POP出，添加到输出字符串。
+ 9. Reverse the output string. 反转输出字符串。
 
 **Example**
 
 Suppose we want to convert 2*3/(2-1)+5*(4-1) into Prefix form:
 
+假设我们想要将表达式 2\*3/(2-1)+5\*(4-1) 转换成前缀形式：
+
 Reversed Expression: )1-4(*5+)1-2(/3*2
+
+反转后的表达式：)1-4(\*5+)1-2(/3\*2
 
 | Char Scanned | Stack Contents(Top on right) | Prefix Expression(right to left) |
 |--------------|------------------------------|----------------------------------|
@@ -209,11 +213,17 @@ Reversed Expression: )1-4(*5+)1-2(/3*2
 | 2            | +/*                          | 14-5*12-32                       |
 |              | Empty                        | 14-5\*12-32\*/+                  |
 
-Reverse the output string :        +/\*23-21\*5-41
+Reverse the output string : +/\*23-21\*5-41
+
+反转输出字符串为：+/\*23-21\*5-41
 
 So, the final Prefix Expression is +/\*23-21\*5-41
- 
+
+所以，最后前缀表达式为 +/\*23-21\*5-41
+
 Refer program #1 For infix to prefix Conversion.
+
+参考程序1，中缀转前缀
 
 ```C
 /*
