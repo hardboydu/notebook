@@ -127,9 +127,9 @@ To convert an expression from infix to postfix, we are going to use stack.
 
 **Example**
 
-Suppose we want to convert 2*3/(2-1)+5*(4-1) into Postfix form, following table shows how it works:
+Suppose we want to convert 2\*3/(2-1)+5\*(4-1) into Postfix form, following table shows how it works:
 
-我们将表达式 2*3/(2-1)+5*(4-1) 转换到后缀表示，下边的表格描述了详细过程：
+我们将表达式 2\*3/(2-1)+5\*(4-1) 转换到后缀表示，下边的表格描述了详细过程：
 
 | Char Scanned | Stack Contents | Postfix Expression |
 |--------------|----------------|--------------------|
@@ -152,9 +152,9 @@ Suppose we want to convert 2*3/(2-1)+5*(4-1) into Postfix form, following table 
 | )            | +*             | 23*21-/541-        |
 |              | Empty          | 23\*21-/541-\*+    |
 
-So, the Postfix Expression is 23*21-/541-*+
+So, the Postfix Expression is 23\*21-/541-\*+
 
-最终，后缀表达式为 23*21-/541-*+
+最终，后缀表达式为 23\*21-/541-\*+
 
 Refer program #1 for infix to postfix Conversion
 
