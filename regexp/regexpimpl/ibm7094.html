@@ -1,0 +1,440 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>IBM 7094 Cheat Sheet</title>
+<style type="text/css"><!--
+
+body {
+	background-color: white;
+	color: black;
+	font-family: serif;
+	font-size: medium;
+	line-height: 1.2em;
+	margin-left: 0.50in;
+	margin-right: 0.50in;
+}
+
+h1.tl {
+	font-weight: bold;
+	font-size: medium;
+	text-align: center;
+	margin-top: 3em;
+	margin-bottom: 1em;
+}
+
+h2.sh {
+	text-indent: 0in;
+	text-align: left;
+	margin-top: 2em;
+	margin-bottom: 0.5em;
+	font-weight: bold;
+	font-size: medium
+}
+
+p.lp {
+	text-indent: 0in;
+	text-align: left;
+}
+
+p.lpj {
+	text-indent: 0in;
+	text-align: justify;
+}
+
+p.pp {
+	text-indent: 0.35in;
+	text-align: left;
+}
+
+div.in {
+	margin-left: 0.5in;
+	margin-right: 0.5in;
+}
+
+p.copy {
+	text-align: center;
+	text-indent: 0in;
+	margin-top: 3em;
+	margin-bottom: 3em;
+	font-size: small;
+}
+
+h2.au {
+	font-weight: normal;
+	font-size: medium;
+	text-align: center;
+	margin-top: 0em;
+	margin-bottom: 3em;
+}
+
+p.desc {
+	margin-top: 0;
+	margin-bottom: 1em;
+	margin-left: 0.35in;
+	margin-right: 0.35in;
+	text-align: left;
+}
+
+--></style>
+</head>
+<body>
+
+
+<h1 class=tl>IBM 7094 Cheat Sheet</h1>
+<h2 class=au>
+<a href="http://swtch.com/~rsc/">Russ Cox</a>
+<br>
+<i>rsc@swtch.com</i>
+<br>
+November 2000; updated January 2007 (<i>sic</i>)
+<br>
+<a href="https://plus.google.com/116810148281701144465" rel="author"><IMG src="http://www.google.com/images/icons/ui/gprofile_button-16.png" WIDTH="16" HEIGHT="16"></a> <g:plusone size="small" annotation="none"></g:plusone>
+</h2>
+
+<p class=lpj>
+The IBM 7094 was a 1960s-era mainframe.
+Tony Van Vleck has 
+<a href="http://www.multicians.org/thvv/7094.html">documented its use</a> in the CTSS system.
+Ken Thompson was working on an IBM 7094 running CTSS when
+he wrote his regular expression compiler,
+described in:
+</p>
+<div class=in>
+<p class=lp>
+Ken Thompson,
+&ldquo;Regular expression search algorithm,&rdquo;
+Communications of the ACM 11(6) (June 1968), pp.&nbsp;419&ndash;422.
+<a href="http://doi.acm.org/10.1145/363347.363387"><i>http://doi.acm.org/10.1145/363347.363387</i></a>
+</p>
+</div>
+<p class=lpj>
+Thompson's paper describes an algorithm that
+translates a regular expression into IBM 7094 machine code.
+This web page describes the IBM 7094 and its instructions only
+as far as needed to understand the paper.
+Elsewhere on this site you can find a
+<a href="/~rsc/regexp/regexp1.html">C-based reimplementation
+of Thompson's approach</a>.
+</p>
+
+
+<h2 class=sh>
+Machine state
+</h2>
+
+<p class=lp>
+Memory (<code>M[</code><i>addr</i><code>]</code>): 32,768 36-bit words in main core.
+Word-addressed.
+</p>
+
+<p class=lp>
+38-bit Accumulator (<code>AC</code>): 35-bit magnitude, 
+sign bit, extra bit for unsigned words, carry bit.
+</p>
+
+<p class=lp>
+Seven 15-bit index registers (<code>XR[</code><i>index</i><code>]</code>): usually hold (word-addressed) pointers.
+<i>Index</i> ranges from 1 to 7; there is no <code>XR[0]</code>.
+</p>
+
+<p class=lp>
+15-bit instruction counter (<code>IC</code>): 
+aka instruction pointer, program counter, word-addressed.
+</p>
+
+<h2 class=sh>
+Instruction format
+</h2>
+
+<p class=lp>
+36-bit instructions: <code></code><i>op</i><code> </code><i>addr</i><code>, </code><i>index</i><code>, </code><i>decr</i><code></code>
+</p>
+
+<div class=in>
+<table cellspacing=0 cellpadding=0 border=1 width="100%" bgcolor="#000000">
+<tr>
+<td width="37%">
+	<table cellspacing=0 cellpadding=0 border=0 width="100%" bgcolor="#ffffff">
+	<tr>
+		<td align=left><font size=-1>35</font>
+		<td>
+		<td align=right><font size=-1>21</font>
+	<tr>
+		<td>
+		<td align=center><i>address</i>
+		<td>
+	</table>
+<td width="13%">
+	<table cellspacing=0 cellpadding=0 border=0 width="100%" bgcolor="#ffffff">
+	<tr>
+		<td align=left><font size=-1>20</font>
+		<td>
+		<td align=right><font size=-1>18</font>
+	<tr>
+		<td>
+		<td align=center><i>index</i>
+		<td>
+	</table>
+<td width="37%">
+	<table cellspacing=0 cellpadding=0 border=0 width="100%" bgcolor="#ffffff">
+	<tr>
+		<td align=left><font size=-1>17</font>
+		<td>
+		<td align=right><font size=-1>3</font>
+	<tr>
+		<td>
+		<td align=center><i>decrement</i>
+		<td>
+	</table>
+<td width="13%">
+	<table cellspacing=0 cellpadding=0 border=0 width="100%" bgcolor="#ffffff">
+	<tr>
+		<td align=left><font size=-1>2</font>
+		<td>
+		<td align=right><font size=-1>0</font>
+	<tr>
+		<td>
+		<td align=center><i>op</i>
+		<td>
+	</table>
+</table>
+</div>
+<p class=lp>
+Many instruction encodings omit <i>decr</i>,
+instead using bits 17&ndash;3
+as additional opcode bits.
+Bit 0 is actually called S, the sign bit.
+</p>
+
+<h2 class=sh>
+Instructions
+</h2>
+
+<p class=lp>
+<code>ACL </code><i>addr</i><code></code>
+</p>
+<p class=desc>
+add and carry logical word: 
+<code>AC &lt;- AC + M[</code><i>addr</i><code>]</code>
+</p>
+
+<p class=lp>
+<code>AXC </code><i>addr</i><code>, </code><i>index</i><code></code>
+</p>
+<p class=desc>
+address to index complement:
+<code>XR[</code><i>index</i><code>] &lt;- </code>2<sup>15</sup><code> - </code><i>addr</i><code></code>
+<br>
+(note that <code></code><i>addr</i><code></code>, not <code>M[</code><i>addr</i><code>]</code>, is being used.)
+</p>
+
+<p class=lp>
+<code>AXC **, </code><i>index</i><code></code>
+</p>
+<p class=desc>
+<code>**</code> is just a <code>0</code> to the
+assembler, but by convention it denotes a value that is 
+being manipulated at run-time (i.e., in self-modifying code)
+by instructions such as <code>PAC</code>, <code>PCA</code>,
+and <code>SCA</code>.
+</p>
+
+<p class=lp>
+<code>CAL </code><i>addr</i><code>, </code><i>index</i><code></code>
+</p>
+<p class=desc>
+clear and add, logical (unsigned):
+<code>AC &lt;- 0; AC &lt;- AC + M[</code><i>addr</i><code>+XR[</code><i>index</i><code>]]</code>
+<br>
+(If <i>index</i> is missing, the <code>+XR[</code><i>index</i><code>]</code> is omitted.)
+</p>
+
+<p class=lp>
+<code>CLA </code><i>addr</i><code>, </code><i>index</i><code></code>
+</p>
+<p class=desc>
+clear and add (signed):
+<code>AC &lt;- 0; AC &lt;- AC + M[</code><i>addr</i><code>+XR[</code><i>index</i><code>]]</code>
+<br>
+(If <i>index</i> is missing, the <code>+XR[</code><i>index</i><code>]</code> is omitted.)
+</p>
+
+<p class=lp>
+<code>LAC </code><i>addr</i><code>, </code><i>index</i><code></code>
+</p>
+<p class=desc>
+load complement of address in index:
+<code>XR[</code><i>index</i><code>] &lt;- </code>2<sup>15</sup><code> - M[</code><i>addr</i><code>]</code>
+</p>
+
+<p class=lp>
+<code>PAC , </code><i>index</i><code></code>
+</p>
+<p class=desc>
+place complement of address in index:
+<code>XR[</code><i>index</i><code>] &lt;- </code>2<sup>15</sup><code> - AC&lt;35:21&gt;</code>
+</p>
+
+<p class=lp>
+<code>PCA , </code><i>index</i><code></code>
+</p>
+<p class=desc>
+place complement of index in address:
+<code>AC &lt;- 0; AC&lt;35:21&gt; &lt;- </code>2<sup>15</sup><code> - XR[</code><i>index</i><code>]</code>
+</p>
+
+<p class=lp>
+<code>SCA </code><i>addr</i><code>, </code><i>index</i><code></code>
+</p>
+<p class=desc>
+store complement of index in address:
+<code>M[</code><i>addr</i><code>]&lt;35:21&gt; &lt;- </code>2<sup>15</sup><code> - XR[</code><i>index</i><code>]</code>
+</p>
+
+<p class=lp>
+<code>SCA </code><i>addr</i><code>, 0</code>
+</p>
+<p class=desc>
+score complement of zero in address:
+<code>M[</code><i>addr</i><code>]&lt;35:21&gt; &lt;- </code>2<sup>15</sup><code> - 0</code>
+</p>
+<p class=desc>
+the machine description does not explicitly discuss this
+possibility for a <code>SCA</code> instruction, but
+Thompson's implementation requires that it behave this way.
+</p>
+
+<p class=lp>
+<code>SLW </code><i>addr</i><code>, </code><i>index</i><code></code>
+</p>
+<p class=desc>
+store logical word:
+<code>M[</code><i>addr</i><code>+XR[</code><i>index</i><code>]] &lt;- AC</code>
+</p>
+
+<p class=lp>
+<code>TRA </code><i>label</i><code>, </code><i>index</i><code></code>
+</p>
+<p class=desc>
+transfer (branch, jump):
+<code>IC &lt;- </code><i>label</i><code>+XR[</code><i>index</i><code>]</code>
+<br>
+(If <i>index</i> is missing, the <code>+XR[</code><i>index</i><code>]</code> is omitted.)
+</p>
+
+<p class=lp>
+<code>TSX </code><i>label</i><code>, </code><i>index</i><code></code>
+</p>
+<p class=desc>
+transfer and set index (subroutine call):
+<code>XR[</code><i>index</i><code>] = </code>2<sup>15</sup><code> - IC; IC &lt;- </code><i>label</i><code></code>
+</p>
+
+<p class=lp>
+<code>TXH </code><i>label</i><code>, </code><i>index</i><code>, </code><i>decr</i><code></code>
+</p>
+<p class=desc>
+transfer on index high:
+<code>if(</code><i>decr</i><code> &lt; XR[</code><i>index</i><code>]) IC &lt;- </code><i>label</i><code></code>
+</p>
+
+<p class=lp>
+<code>TXL </code><i>label</i><code>, </code><i>index</i><code>, </code><i>decr</i><code></code>
+</p>
+<p class=desc>
+transfer on index low:
+<code>if(</code><i>decr</i><code> &gt;= XR[</code><i>index</i><code>]) IC &lt;- </code><i>label</i><code></code>
+</p>
+
+<p class=lp>
+<code>TXI </code><i>label</i><code>, </code><i>index</i><code>, </code><i>decr</i><code></code>
+</p>
+<p class=desc>
+transfer with index incremented:
+<code>XR[</code><i>index</i><code>] = XR[</code><i>index</i><code>] + </code><i>decr</i><code>; IC &lt;- </code><i>label</i><code></code>
+</p>
+
+<p class=lp>
+<code>TXI *+1, </code><i>index</i><code>, </code><i>decr</i><code></code>
+</p>
+<p class=desc>
+<code>*</code> indicates the current instruction
+and <code>*+1</code> the next instruction,
+so this is simply an
+increment/decrement instruction: <code>XR[</code><i>index</i><code>] = XR[</code><i>index</i><code>] + </code><i>decr</i><code></code>.
+</p>
+
+
+<h2 class=sh>
+Primary sources
+</h2>
+
+<p class=lp>
+The descriptions on this web page are based on 
+the full description of the machine state and 
+instruction set in these
+page scans of Appendix 1 of an IBM 7094 manual:
+<a href="gr000426.jpg">1</a>
+<a href="gr000427.jpg">2</a>
+<a href="gr000428.jpg">3</a>
+<a href="gr000429.jpg">4</a>
+<a href="gr000430.jpg">5</a>
+<a href="gr000432.jpg">6</a>
+<a href="gr000431.jpg">7</a>.
+</p>
+
+<p class=lp>
+<font size=-1>
+I regret that I do not remember where I obtained these images.
+I downloaded them from a web site in November 2000.
+The file names (<code>gr000426.jpg</code>, etc.) are original,
+but web searches for those names in 2007 do not turn up any hits.
+I would like to give proper credit.  If someone does know the
+source of these images, please
+<a href="mailto:rsc@swtch.com">email me</a>.
+</font>
+</p>
+
+<h2 class=sh>
+Historical note
+</h2>
+
+<p class=lp>
+LISP originated on the IBM 709, the precursor to the
+IBM 7090 and 7094:
+the <i>address</i> and <i>decrement</i>
+fields of the instruction word are the origin of
+LISP's <code>CAR</code> and <code>CDR</code>.
+<a href="http://www.frobenius.com/jack.htm">Jack Harper</a> has 
+documented the IBM 7090/7094 in
+<a href="http://www.frobenius.com/7090.htm">greater detail</a>
+as part of documenting early LISP implementations.
+</p>
+
+<center>
+<p class=copy>
+Copyright &copy; 2007 Russ Cox.  All Rights Reserved.
+<br>
+<a href="http://swtch.com/~rsc/regexp/">http://swtch.com/~rsc/regexp/</a>
+</p>
+</center>
+<script type="text/javascript">
+var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+</script>
+<script type="text/javascript">
+var pageTracker = _gat._getTracker("UA-3319603-2");
+pageTracker._initData();
+pageTracker._trackPageview();
+</script>
+<script type="text/javascript">
+  (function() {
+    var po = document.createElement('script'); po.type = 'text/javascript'; po.async = true;
+    po.src = 'https://apis.google.com/js/plusone.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(po, s);
+  })();
+</script>
+</body>
+</html>
