@@ -53,6 +53,6 @@ The metacharacters \*, +, and ? are repetition operators: e1\* matches a sequenc
 
 元字符 \*，+，? 为重复运算符：e1\* 匹配零个或者多个字符串（可能不同）序列，包括e1；e1+ 匹配一个或者多个；e1?匹配另个或者一个。
 
-The operator precedence, from weakest to strongest binding, is first alternation, then concatenation, and finally the repetition operators. Explicit parentheses can be used to force different meanings, just as in arithmetic expressions. Some examples: ab|cd is equivalent to (ab)|(cd); ab* is equivalent to a(b*).
+The operator precedence, from weakest to strongest binding, is first alternation, then concatenation, and finally the repetition operators. Explicit parentheses can be used to force different meanings, just as in arithmetic expressions. Some examples: ab|cd is equivalent to (ab)|(cd); ab\* is equivalent to a(b\*).
 
-运算符的优先级，从弱到强进行结合，先串联，然后并联，最后是重复运算符。圆括号可以改变优先级顺序，就像算数表达式那样。例如：ab|cd 等价于 (ab)|(cd)；ab*等价于 a(b*)。
+运算符的优先级，从弱到强进行结合，先串联，然后并联，最后是重复运算符。圆括号可以改变优先级顺序，就像算数表达式那样。例如：ab|cd 等价于 (ab)|(cd)；ab\*等价于 a(b\*)。
