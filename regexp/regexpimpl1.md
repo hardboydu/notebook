@@ -56,3 +56,11 @@ The metacharacters \*, +, and ? are repetition operators: e1\* matches a sequenc
 The operator precedence, from weakest to strongest binding, is first alternation, then concatenation, and finally the repetition operators. Explicit parentheses can be used to force different meanings, just as in arithmetic expressions. Some examples: ab|cd is equivalent to (ab)|(cd); ab\* is equivalent to a(b\*).
 
 运算符的优先级，从弱到强进行结合，先串联，然后并联，最后是重复运算符。圆括号可以改变优先级顺序，就像算数表达式那样。例如：ab|cd 等价于 (ab)|(cd)；ab\*等价于 a(b\*)。
+
+The syntax described so far is a subset of the traditional Unix egrep regular expression syntax. This subset suffices to describe all regular languages: loosely speaking, a regular language is a set of strings that can be matched in a single pass through the text using only a fixed amount of memory. Newer regular expression facilities (notably Perl and those that have copied it) have added many new operators and escape sequences. These additions make the regular expressions more concise, and sometimes more cryptic, but usually not more powerful: these fancy new regular expressions almost always have longer equivalents using the traditional syntax.
+
+上文描述的语法是传统Unixegrep正则表达式语法的一个子集，这个子集足以描述所有的正则语言：不严格的说，一个正则语言是字符串的集合，在只需要固定内存，并且只需要遍历一遍文本即可匹配到所有的字符串。新的正则表达式引擎（尤其是Perl以及从Perl派生的工具）添加了很多新的运算符和转义序列。这些新的特性使得正则表达式变得很简洁，有时候变得很神秘，但通常并不是很有用：这些新奇的新的正则表达式都有一个等价的传统与法表达式，这些传统语法表达式通常都很长。
+
+One common regular expression extension that does provide additional power is called backreferences. A backreference like \1 or \2 matches the string matched by a previous parenthesized expression, and only that string: (cat|dog)\1 matches catcat and dogdog but not catdog nor dogcat. As far as the theoretical term is concerned, regular expressions with backreferences are not regular expressions. The power that backreferences add comes at great cost: in the worst case, the best known implementations require exponential search algorithms, like the one Perl uses. Perl (and the other languages) could not now remove backreference support, of course, but they could employ much faster algorithms when presented with regular expressions that don't have backreferences, like the ones considered above. This article is about those faster algorithms.
+
+一种常见的正则表达式扩展提供了一种有用的特性，叫做反向引用
