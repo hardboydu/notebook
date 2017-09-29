@@ -11,5 +11,6 @@ vim build/.config
 CONFIG_RTE_LIBEAL_USE_HPET=y
 CONFIG_RTE_BUILD_SHARED_LIB=y
 
-make install T=x86_64-native-linuxapp-gcc DESTDIR=/opt/dpdk-17.05.2
+make
+make install DESTDIR=/opt/dpdk-17.05.2 prefix=/
 ```
