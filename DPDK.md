@@ -34,3 +34,13 @@ insmod <dpdk path>/igb_uio.ko
 ```
 CFLAGS += -march=corei7
 ```
+
+# pktgen dpdk
+
+```
+app/app/x86_64-native-linuxapp-gcc/app/pktgen -c f -n 4 --proc-type auto --socket-mem 256 -- -P -m "1.0,1.1"
+
+-c 3 使用三个core
+-m "1.0,1.1" 1 core控制port 0,1 core控制port 1，core 0一定要预留出来给 pktgen display processing
+
+```
