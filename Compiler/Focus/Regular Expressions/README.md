@@ -1,7 +1,7 @@
 # Expression
 
-* [Algebraic Expressions, Conversion and Evaluation with C](https://github.com/hardboydu/notebook/blob/master/Expressions.md) (目前只翻译了部分) 
-* [代数表达式计算的一个实现(目前只实现了中缀转后缀)](https://github.com/hardboydu/notebook/blob/master/Expressions.c) 
+* [Algebraic Expressions, Conversion and Evaluation with C](./Expressions.md) (目前只翻译了部分) 
+* [代数表达式计算的一个实现(目前只实现了中缀转后缀)](./Expressions.c) 
 
 
 # Reference
