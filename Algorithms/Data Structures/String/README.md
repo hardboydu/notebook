@@ -14,6 +14,9 @@
 * [\[Steven S. Skiena\]\[The Algorithm Design Manual 2nd\]](https://www.amazon.com/Steven-Skiena-Algorithm-Design-Manual/dp/B00N4EQ1X4/) 第18章的讲解：Set and String Problems
 * [\[Robert Sedgewick, Philippe Flajolet\]\[An Introduction to the Analysis of Algorithms, 2nd\] \(2013\)](https://www.amazon.com/Introduction-Analysis-Algorithms-2nd/dp/032190575X) 第8章的讲解：STRINGS AND TRIES
 * [\[Anany Levitin\]\[Introduction to the Design and Analysis of Algorithms \(3rd Edition\)\]\(Oct 9, 2011\)](https://www.amazon.com/Introduction-Design-Analysis-Algorithms-3rd/dp/0132316811)  第7章 7.2节：Input Enhancement in String Matching
+* [\[Thierry Lecroq\]EXACT STRING MATCHING ALGORITHMS](http://www-igm.univ-mlv.fr/~lecroq/string/)
+    * [SMART \(String Matching Algorithms Research Tool\)](https://smart-tool.github.io/smart/)  is a tool which provides a standard framework for researchers in string matching. It helps users to test, design, evaluate and understand existing solutions for the exact string matching problem. Moreover it provides the implementation of (almost) all string matching algorithms and a wide corpus of text buffers.
+
 
 ## Puzzles
 
