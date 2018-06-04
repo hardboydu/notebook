@@ -93,3 +93,97 @@ It is true that memory allocation for packets is a significant overhead in the  
 > <sup>5</sup> Forwarding 10 Gbit/s with minimum-sized packets on a single 3.0 GHz CPU core leaves a budget of 200 cycles/packet.
 
 Ixy’s API is the same as DPDK’s API when it comes to sending and receiving packets  and managing memory. It can best be explained by reading the example applications ```ixy-fwd.c``` and ```ixy-pktgen.c```. The transmit-only example ```ixy-pktgen.c``` creates a memory pool, a fixed-size collection of fixed-size buffers that are used as packet buffers and prefills them with packet data. It then allocates a batch of packets from this memory pool and passes them to the transmit function. The driver takes care of freeing packets asynchronously in the transmit function. The forward example ```ixy-fwd.c``` can avoid explicit handling of memory pools in the application: the driver allocates a memory pool for each receive ring and automatically allocates packets, freeing is either handled in the transmit function as before or by dropping the packet explicitly if the output link is full.
+
+### 4.3 NIC Ring API
+
+NICs expose multiple circular buffers called queues or rings to transfer packets. The simplest setup uses only one receive and one transmit queue. Multiple transmit queues are merged on the NIC, incoming traffic is split according to filters or a hashing algorithm (RSS) if multiple receive queues are configured. Both receive and transmit rings work in a similar way: the driver programs a (physical) base address and the size of the ring. It then fills the memory area with DMA descriptors, i.e., pointers to physical addresses where the actual packet data is stored and some metadata. Sending and receiving packets is then done by passing ownership of the DMA descriptors between driver and hardware via a head and tail pointer. The driver controls the tail pointer, hardware the head pointer. Both pointers are stored
+in device registers accessible via MMIO.
+
+The initialization code is in ```ixgbe.c``` starting from line 124 for receive queues and from line 179 for transmit queues. Further details are in the datasheet in Section 7.1.9 and in the datasheet sections mentioned in the code.
+
+#### 4.3.1 Receiving Packets
+
+The driver fills up the ring buffer with physical pointers to packet buffers in ```start_rx_queue``` on startup. Each time a packet is received, the corresponding buffer is returned to the application and we allocate a new packet buffer and store its physical address in the DMA descriptor and reset the ready flag. It is up to the application to free the packet buffer of received packets. We also need a way to translate the physical addresses in the DMA descriptor found in the ring back to its virtual counterpart on packet reception. This is done by keeping a second copy of the ring that is populated with virtual instead of physical addresses, this is then used as a lookup table for the translation.
+
+A naive way to check if packets have been received is reading the head register from the NIC. However, reading a NIC register requires a PCIe round trip – a slow operation. The hardware also sets a flag in the descriptor via DMA which is far cheaper to read as the DMA write is handled by the last-level cache on modern CPUs. This is effectively the difference between a cache miss and hit for every received packet. Figure 1 illustrates the memory layout: the DMA descriptors in the ring to the left contain physical pointers to packet buffers stored in a separate location in a memory pool. The packet buffers in the memory pool contain their physical address in a metadata field. Figure 2 shows the RDH (head) and RDT (tail) registers controlling the ring buffer on the right side, and the local copy containing the virtual addresses to translate the physical addresses in the descriptors in the ring back for the application. ixgbe_rx_packet in ixgbe.c implements the receive logic as described by Sections 1.8.2 and 7.1 of the datasheet.
+
+#### 4.3.2 Transmitting Packets
+
+Transmitting packets follows the same concept and API as receiving them, but the function is more complicated because the API between NIC and driver is asynchronous. Placing a packet into the ring does not immediately transfer it and blocking to wait for the transfer is unfeasible. Hence, the ```ixgbe_tx_packet``` function in ```ixgbe.c``` consists of two parts: freeing packets from previous calls that were sent out by the NIC followed by placing the current packets into the ring. The first part is often called cleaning and works similar to receiving packets: the driver checks a flag that is set by the hardware after the packet associated with the descriptor is sent out. Sent packet buffers can then be free’d, making space in the ring. Afterwards, the pointers of the packets to be sent are stored in the DMA descriptors and the tail pointer is updated accordingly.
+
+#### 4.3.3 Batching
+
+Each successful transmit or receive operation involves an update to the NIC’s tail pointer register (RDT and TDT for receive/transmit), a slow operation. This is one of the reasons why batching is so important for performance. Both the receive and transmit function operate on a batch of packets in ixy, updating the register only once per batch.
+
+#### 4.3.4 Offloading Features
+
+Ixy currently only enables CRC checksum offloading. Unfortunately, packet IO frameworks (e.g., netmap) are often restricted to this bare minimum of offloading features. DPDK is the exception here as it supports almost all offloading features offered by the hardware. However, as explained earlier its receive and transmit functions pay the price for these features in the form of complexity.
+
+We will try to find a balance and showcase selected simple offloading features in Ixy in the future. These offloading features can be implemented in the receive and transmit functions, see comments in the code. This is simple for some features like VLAN tag offloading and more involved for more complex features requiring an additional descriptor containing metadata information.
+
+#### 4.3.5 Huge Pages
+
+Ixy requires the use of 2MiB huge pages because we need to allocate memory with contiguous physical addresses for the ring memory storing the DMA descriptors. Each DMA descriptor is 16 bytes, i.e., rings with a size of above 256 (typical ring sizes are 512 and above) would not fit on a single page 4KiB page and allocating multiple pages with contiguous physical addresses from user space is difficult. Memory pools are also allocated on huge pages. Huge pages are used by all such frameworks as they also increase the performance due to reduced dTLB usage.
+
+## 5 PERFORMANCE EVALUATION
+
+We run the ixy-fwd example under a full bidirectional load of 29.76Mpps (line rate with minimum-sized packets at 2x 10Gbit/s) pinned to a single CPU core.
+
+### 5.1 Throughput
+
+To quantify the baseline performance and identify bottlenecks, we run the forwarding example while increasing the CPU’s clock frequency from 1.6GHz to 3.3GHz. Figure 3 shows the resulting throughput when forwarding across the two ports of a dual-port NIC and when using two separate single-port NICs and compares it to DPDK’s l2fwd example. Ixy is faster than DPDK at low clock speeds, but it plateaus earlier than DPDK when both ports are on the same NIC. This indicates that the bottleneck is the NIC or PCIe bus in this scenario, DPDK’s driver is more optimized and accesses the NIC less often. Both Ixy and DPDK were configured with a batch size of 32.
+
+### 5.2 Batching
+
+Batching is one of the main drivers for performance. Receiving or sending a packet involves an access to the queue index registers, invoking a costly PCIe round-trip. Figure 4 shows how the performance increases as the batch size is increased in the bidirectional forwarding scenario with two single-port NICs. Increasing batch sizes have diminishing returns: this is clearly visible when the CPU is only clocked at 1.6GHz. Performance increases logarithmically until a batch size of 32, the gain afterwards drops off. This is caused by an increased cache pressure as more packets are kept in the cache. ixy-fwd does not touch the packet data, so the effect is still small but measurable on slow CPUs.
+
+### 5.3 Profiling
+
+We run perf on ixy-fwd running under full bidirectional load at 1.6GHz with two single-port NICs using the default batch size of 32. This configuration ensures that the CPU is the bottleneck. perf allows profiling with the minimum possible effect on the performance (throughput drops by only 3.5% while perf is running). Table 1 shows where CPU time is spent on average per forwarded packet and compared to DPDK. Ixy’s receive function leaves room for improvements, it is far less optimized than the transmit function. There are several places in the receive function where DPDK avoids memory accesses by batching compared to ixy. However, these optimizations were not applied for simplicity in ixy: DPDK’s receive function in ixgbe is quite complex.
+
+Overhead for memory management is significant (but still low compared to 100 cycles/packet in the Linux kernel). 55% of the time is spent in non-batched memory operations and none of the calls are inlined. Inlining these functions increases throughput by 9.2% but takes away our ability to account time spent in them with perf. Overall, the overhead of memory management is larger than we initially expected, but we still think explicit memory management for the sake of a usable API is a worthwhile trade-off. This is especially true for ixy aiming at simplicity,but also for DPDK or other frameworks targeting complex applications. Simple forwarding can easily be done on an exposed ring interface, but anything more complex that does not sent out packets immediately (e.g., because they are processed further on a different core). Moreover, 24 cycles per packet that could be saved is still a tiny improvement compared to other architectural decisions like batch processing that reduces per-packet processing costs by 300 cycles when going from no batching to a batch size of 32.
+
+### 5.4 Reproducible Research
+
+The full code of ixy and the scripts used to run these benchmarks to reproduce these results is available at GitHub [7, 8]. We used commit 436750e for the evaluation. These results were obtained on an Intel Xeon E3-1230 V2 running Ubuntu 16.04.2 (kernel 4.4) with a dual port Intel X520-T2 (82599ES) NIC and two single port X520-T1 NICs. Turboboost, Hyper-Threading, and power-saving features were
+disabled. An identical second server was used to run the MoonGen packet generator [9] with the l2-load-latency example script that can generate full bidirectional line rate.
+
+Preliminary tests on other systems show that the performance can vary significantly with the CPU model. In particular, using a fast CPU or less load (e.g., only unidirectional load) will often lead to worse performance. In fact, ixy-fwd fails to achieve line rate in with unidirectional load at 3.3GHz on the hardware used here. Underclocking the CPU or adding artificial workload increases the speed in this case. The likely cause is inefficient utilization of the NIC or PCIe bus, we are still investigating this particular issue. Older versions of DPDK also suffered from this.
+
+## 6 CONCLUSIONS AND FUTURE WORK
+
+We discussed how to build a userspace driver for NICs of the ixgbe family which are commonly found in commodity servers. Ixy is work in progress, this paper only aims to explain the basics of ixy and similar frameworks. We plan to add support for VirtIO NICs to allow simple testing in virtual machines without hardware dependencies. We plan to use ixy to investigate the effects of several optimizations that are commonly found in similar frameworks: batching, huge page size, prefetching, DMA descriptor ring size, mem- ory pool data structures, etc. These individual effects can easily be tested in isolation (or combined with others)in ixy due to its simple and easily modifiable driver.
+
+Further, we plan to investigate safety and security features on modern hardware for full userspace packet frameworks. Applications built on DPDK or ixy require full root privileges. These privileges can be dropped after initialization in ixy, but the process still has full access to the hardware which can write to arbitrary memory locations using DMA, posing a safety and security risk. This can be mitigated by using the IOMMU to restrict the device to a pre-defined address space. The IOMMU is a rarely used component with mostly unknown performance characteristics.
+
+## 7 REFERENCES
+
+* [1] T. Barbette, C. Soldani, and L. Mathy. Fast userspace packet processing. In ACM/IEEE ANCS, 2015.
+* [2] G. Bertin. Single RX queue kernel bypass in Netmap for high packet rate networking, Oct. 2015. 
+https://blog.cloudflare.com/ 
+single-rx-queue-kernel-bypass-with-netmap/.
+* [3] N. Bonelli, A. Pietro, S. Giordano, and G. Procissi. On multi-gigabit packet capturing with multi-core commodity hardware. In Passive and Active Measurement 2012, pages 64–73, Mar. 2012.
+* [4] DPDK Project. DPDK: Supported NICs. http://dpdk.org/doc/nics. Last visited 2017-11-30.
+* [5] DPDK Project. DPDK User Guide: Overview of Networking Drivers. http://dpdk.org/doc/guides/nics/overview.html. Last visited 2017-11-30.
+* [6] DPDK Project. DPDK Website. http://dpdk.org/. Last visited 2017-11-30.
+* [7] P. Emmerich. ixy code. https://github.com/emmericp/ixy.
+* [8] P. Emmerich. Scripts used for the performance evaluation. https://github.com/emmericp/ixy-perf-measurements.
+* [9] P. Emmerich, S. Gallenmüller, D. Raumer, F. Wohlfart, and G. Carle. MoonGen: A Scriptable High-Speed Packet Generator. In Internet Measurement Conference 2015 (IMC’15), Tokyo, Japan, Oct. 2015.
+* [10] Gilberto Bertin. XDP in practice: integrating XDP into our DDoS mitigation pipeline. In Netdev 2.1, The Technical Conference on Linux Networking, May 2017.
+* [11] Intel 82599 10 GbE Controller Datasheet Rev. 3.3. Intel, 2016.
+* [12] IO Visor Project. BPF and XDP Features by Kernel Version. https://github.com/iovisor/bcc/blob/master/ 
+docs/kernel-versions.md#xdp. Last visited 2017-11-30.
+* [13] IO Visor Project. Introduction to XDP. https://www.iovisor.org/technology/xdp Last visited 2017-11-30.
+* [14] Jim Thompson. DPDK, VPP & pfSense 3.0. In DPDK Summit Userspace, Sept. 2017.
+* [15] Jonathan Corbet. User-space networking with Snabb. In LWN.net, Feb. 2017.
+* [16] L. Gorrie et al. Snabb: Simple and fast packet networking. https://github.com/snabbco/snabb.
+* [17] Linux Foundation. Networking Industry Leaders Join Forces to Expand New Open Source Community to Drive Development of the DPDK Project, Apr. 2017. Press release.
+* [18] R. Morris, E. Kohler, J. Jannotti, and M. Frans Kaashoek. The click modular router. In Operating Systems Review - SIGOPS, volume 33, pages 217–231, Dec. 1999.
+* [19] ntop. PF RING ZC (Zero Copy). http://www.ntop.org/products/packet-capture/pf
+ring/pf ring-zc-zero-copy/. Last visited 2017-11-30.
+* [20] Open vSwitch Project. Open vSwitch with DPDK. http://docs.openvswitch.org/en/latest/intro/install/dpdk/ Last visited 2017-11-30.
+* [21] B. Pfaff, J. Pettit, T. Koponen, E. Jackson, A. Zhou, J. Rajahalme, J. Gross, A. Wang, J. Stringer, P. Shelar, K. Amidon, and M. Casado. The design and implementation of open vswitch. In 12th USENIX Symposium on Networked Systems Design and Implementation (NSDI 15), pages 117–130, Oakland, CA, 2015. USENIX Association.
+* [22] L. Rizzo. netmap: A Novel Framework for Fast Packet I/O. In USENIX Annual Technical Conference, pages 101–112, 2012.
+* [23] Snort Project. Snort 3 User Manual. https://www.snort.org/downloads/snortplus/snort manual.pdf Last visited 2017-11-30.
+* [24] Solarflare. OpenOnload Website. http://www.openonload.org/. Last visited 2017-11-30.
+* [25] K. Yasukata, M. Honda, D. Santry, and L. Eggert. StackMap: Low-Latency Networking with the OS Stack and Dedicated NICs. In 2016 USENIX Annual Technical Conference (USENIX ATC 16), pages 43–56, Denver, CO, 2016. USENIX Association.
