@@ -223,11 +223,19 @@ To quantify the baseline performance and identify bottlenecks, we run the forwar
 
 为了量化基线性能并识别瓶颈，我们运行转发示例，同时将CPU的时钟频率从1.6GHz提高到3.3GHz。 图3显示了在双端口NIC的两个端口上转发时以及使用两个单独的单端口NIC并将其与DPDK的l2fwd示例进行比较时产生的吞吐量。在低时钟速度下，Ixy比DPDK更快，但当两个端口在同一个NIC上时，它比DPDK更早。 这表明在这种情况下瓶颈是NIC或PCIe总线，DPDK的驱动程序更加优化，并且不经常访问NIC。 Ixy和DPDK都配置为批量大小为32。
 
+![image3](image/ixy1img03.PNG)
+
+Figure 3: Bidirectional single-core forwarding performance with varying CPU speed, batch size 32.
+
 ### 5.2 Batching 批处理
 
 Batching is one of the main drivers for performance. Receiving or sending a packet involves an access to the queue index registers, invoking a costly PCIe round-trip. Figure 4 shows how the performance increases as the batch size is increased in the bidirectional forwarding scenario with two single-port NICs. Increasing batch sizes have diminishing returns: this is clearly visible when the CPU is only clocked at 1.6GHz. Performance increases logarithmically until a batch size of 32, the gain afterwards drops off. This is caused by an increased cache pressure as more packets are kept in the cache. ixy-fwd does not touch the packet data, so the effect is still small but measurable on slow CPUs.
 
 批处理是性能的主要驱动因素之一。接收或发送数据包涉及访问队列索引寄存器，从而调用昂贵的PCIe往返。 图4显示了在具有两个单端口NIC的双向转发方案中，随着批处理大小的增加，性能如何提高。增加批处理大小的回报会减少：当CPU的时钟频率仅为1.6GHz时，这一点很明显。 性能以对数方式增加，直到批量大小为32，之后的增益下降。 这是由于缓存压力增加引起的，因为更多数据包保留在缓存中。 ixy-fwd 不会触及数据包数据，因此效果仍然很小，但在慢速CPU上可以测量。
+
+![image4](image/ixy1img04.PNG)
+
+Figure 4: Bidirectional single-core forwarding performance between two single-port NICs with varying batch size.
 
 ### 5.3 Profiling 性能剖析
 
