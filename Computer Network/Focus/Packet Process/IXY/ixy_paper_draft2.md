@@ -208,50 +208,50 @@ Our performance evaluation offers some unprecedented looks into performance of u
 
 ## References
 
-[1] B AINBRIDGE , J., AND M AXWELL , J. Red Hat Enterprise Linux Network Performance Tuning Guide. Red Hat Documentation (Mar. 2015). Available at https://access.redhat.com/sites/default/files/attachments/20150325_network_performance_tuning.pdf.
-[2] B ARBETTE , T., S OLDANI , C., AND M ATHY , L. Fast userspace packet processing. In ACM/IEEE ANCS (2015).
-[3] B ERTIN , G. Single RX queue kernel bypass in Netmap for high packet rate networking, Oct. 2015. https://blog.cloudflare.com/single-rx-queue-kernel-bypass-with-netmap/.
-[4] B ONELLI , N., G IORDANO , S., AND P ROCISSI , G. Network traffic processing with pfq. IEEE Journal on Selected Areas in Communications 34, 6 (June 2016), 1819–1833.
-[5] DPDK P ROJECT . DPDK: Supported NICs. http://dpdk.org/doc/nics. Last visited 2018-02-01.
-[6] DPDK P ROJECT . DPDK User Guide: Overview of Networking Drivers. http://dpdk.org/doc/guides/nics/overview.html. Last visited 2018-02-01.
-[7] DPDK P ROJECT . DPDK Website. http://dpdk.org/. Last visited 2018-02-01.
-[8] E MMERICH , P. ixy code. https://github.com/emmericp/ixy.
-[9] E MMERICH , P. ixy Vagrant setup. https://github.com/emmericp/ixy/tree/master/vagrant.
-[10] E MMERICH , P. Scripts used for the performance evaluation. https://github.com/emmericp/ixy-perf-measurements/tree/full-paper.
-[11] E MMERICH , P., G ALLENM ¨ ULLER , S., R AUMER , D., W OHL - FART , F., AND C ARLE , G. MoonGen: A Scriptable High-Speed Packet Generator. In Internet Measurement Conference 2015 (IMC’15) (Tokyo, Japan, Oct. 2015).
-[12] E MMERICH , P., R AUMER , D., G ALLENM ¨ ULLER , S., W OHL - FART , F., AND C ARLE , G. Throughput and Latency of Virtual Switching with Open vSwitch: A Quantitative Analysis. Journal of Network and Systems Management (July 2017).
-[13] F REE BSD P ROJECT . NETMAP(4). In FreeBSD Kernel Interfaces Manual (2017), FreeBSD 11.1-RELEASE.
-[14] G ALLENMLLER , S., E MMERICH , P., W OHLFART , F., R AUMER , D., AND C ARLE , G. Comparison of Frameworks for High-Performance Packet IO. In Architectures for Networking and Communications Systems (ANCS) (Oakland, CA, 2015), ACM, pp. 29–38.
-[15] G ETTYS , J., AND N ICHOLS , K. Bufferbloat: Dark buffers in the internet. Queue 9, 11 (2011), 40.
-[16] G ILBERTO B ERTIN . XDP in practice: integrating XDP into our DDoS mitigation pipeline. In Netdev 2.1, The Technical Conference on Linux Networking (May 2017).
-[17] G ORRIE , L ET AL . Snabb: Simple and fast packet networking. https://github.com/snabbco/snabb.
-[18] H AARDT , M. ioperm(2). In Linux Programmer’s Manual (1993).
-[19] H ASI C ORP . Vagrant website. https://www.vagrantup.com/. Last visited 2018-02-02.
-[20] H UNT , D. mempool: add stack (lifo) mempool handler, 2016. Mailing list post. http://dpdk.org/ml/archives/dev/2016-July/043106.html.
-[21] I NTEL . DPDK Getting Started Guide for Linux. http://dpdk.org/doc/guides/linux_gsg/sys_reqs.html. Last visited 2018-02-01.
-[22] Intel 82599 10 GbE Controller Datasheet Rev. 3.3. Intel.
-[23] Intel Data Direct I/O Technology (Intel DDIO): A Primer. Available at https://www.intel.com/content/www/us/en/io/data-direct-i-o-technology-brief.html.
-[24] Intel Ethernet Controller XL710 Datasheet Rev. 2.1. Intel.
-[25] IO V ISOR P ROJECT . BPF and XDP Features by Kernel Version. https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md#xdp. Last visited 2018-02-01.
-[26] IO V ISOR P ROJECT . Introduction to XDP. https://www.iovisor.org/technology/xdp Last visited 2018-02-01.
-[27] JIM T HOMPSON . DPDK, VPP & pfSense 3.0. In DPDK Summit Userspace (Sept. 2017).
-[28] JONATHAN C ORBET . User-space networking with Snabb. In LWN.net (Feb. 2017).
-[29] KERRISK , M. mlock(2). In Linux Programmer’s Manual (2004).
-[30] LINUX F OUNDATION . Networking Industry Leaders Join Forces to Expand New Open Source Community to Drive Development of the DPDK Project, Apr. 2017. Press release.
-[31] LINUX K ERNEL D OCUMENTATION . Page migration. https://www.kernel.org/doc/Documentation/vm/page_migration.
-[32] LINUX K ERNEL D OCUMENTATION . VFIO - Virtual Function I/O. https://www.kernel.org/doc/Documentation/
-vfio.txt.
-[33] MORRIS , R., K OHLER , E., J ANNOTTI , J., AND F RANS K AASHOEK , M. The click modular router. In Operating Systems Review - SIGOPS (Dec. 1999), vol. 33, pp. 217–231.
-[34] NTOP . PF RING ZC (Zero Copy). http://www.ntop.org/products/packet-capture/pf_ring/pf_ring-zc-zero-copy/. Last visited 2017-11-30.
-[35] O PEN V S WITCH P ROJECT . Open vSwitch with DPDK. http://docs.openvswitch.org/en/latest/intro/install/dpdk/ Last visited 2018-02-01.
-[36] P FAFF , B., P ETTIT , J., K OPONEN , T., J ACKSON , E., Z HOU , A., R AJAHALME , J., G ROSS , J., W ANG , A., S TRINGER , J., S HELAR , P., A MIDON , K., AND C ASADO , M. The design and implementation of open vswitch. In 12th USENIX Symposium on Networked Systems Design and Implementation (NSDI 15) (Oakland, CA, 2015), USENIX Association, pp. 117–130.
-[37] P UDELKO , M. ixy - DMA allocator on normal-sized pages. https://github.com/pudelkoM/ixy/tree/contiguous-pages.
-[38] P UDELKO , M. ixy - head pointer writeback implementation. https://github.com/pudelkoM/ixy/tree/head-pointer-writeback.
-[39] P UDELKO , M. ixy - seccomp implementation. https://github.com/pudelkoM/ixy/tree/seccomp.
-[40] R IZZO , L. netmap: A Novel Framework for Fast Packet I/O. In USENIX Annual Technical Conference (2012), pp. 101–112.
-[41] S NABB P ROJECT . Tuning the performance of the lwaftr. https://github.com/snabbco/snabb/blob/master/src/program/lwaftr/doc/performance.md. Last visited 2018-02-01.
-[42] S NORT P ROJECT . Snort 3 User Manual. https://www.snort.org/downloads/snortplus/snort_manual.pdf Last visited 2018-02-01.
-[43] S OLARFLARE . OpenOnload Website. http://www.openonload.org/. Last visited 2017-11-30.
-[44] S UTTER , H. Lock-Free Code: A False Sense of Security. Dr. Dobb’s Journal (Sept. 2008).
-[45] V IRTUAL O PEN S YSTEMS S ARL . Vhost-user Protocol, 2014. https://github.com/qemu/qemu/blob/stable-2.10/docs/interop/vhost-user.txt.
-[46] Y ASUKATA , K., H ONDA , M., S ANTRY , D., AND E GGERT , L.StackMap: Low-Latency Networking with the OS Stack and Dedicated NICs. In 2016 USENIX Annual Technical Conference (USENIX ATC 16) (Denver, CO, 2016), USENIX Association, pp. 43–56.
+* [1] B AINBRIDGE , J., AND M AXWELL , J. Red Hat Enterprise Linux Network Performance Tuning Guide. Red Hat Documentation (Mar. 2015). Available at * https://access.redhat.com/sites/default/files/attachments/20150325_network_performance_tuning.pdf.
+* [2] B ARBETTE , T., S OLDANI , C., AND M ATHY , L. Fast userspace packet processing. In ACM/IEEE ANCS (2015).
+* [3] B ERTIN , G. Single RX queue kernel bypass in Netmap for high packet rate networking, Oct. 2015. https://blog.cloudflare.com/single-rx-queue-kernel-bypass-with-netmap/.
+* [4] B ONELLI , N., G IORDANO , S., AND P ROCISSI , G. Network traffic processing with pfq. IEEE Journal on Selected Areas in Communications 34, 6 (June 2016), 1819–1833.
+* [5] DPDK P ROJECT . DPDK: Supported NICs. http://dpdk.org/doc/nics. Last visited 2018-02-01.
+* [6] DPDK P ROJECT . DPDK User Guide: Overview of Networking Drivers. http://dpdk.org/doc/guides/nics/overview.html. Last visited 2018-02-01.
+* [7] DPDK P ROJECT . DPDK Website. http://dpdk.org/. Last visited 2018-02-01.
+* [8] E MMERICH , P. ixy code. https://github.com/emmericp/ixy.
+* [9] E MMERICH , P. ixy Vagrant setup. https://github.com/emmericp/ixy/tree/master/vagrant.
+* [10] E MMERICH , P. Scripts used for the performance evaluation. https://github.com/emmericp/ixy-perf-measurements/tree/full-paper.
+* [11] E MMERICH , P., G ALLENM ¨ ULLER , S., R AUMER , D., W OHL - FART , F., AND C ARLE , G. MoonGen: A Scriptable High-Speed Packet Generator. In Internet Measurement Conference 2015 * (IMC’15) (Tokyo, Japan, Oct. 2015).
+* [12] E MMERICH , P., R AUMER , D., G ALLENM ¨ ULLER , S., W OHL - FART , F., AND C ARLE , G. Throughput and Latency of Virtual Switching with Open vSwitch: A Quantitative Analysis. * Journal of Network and Systems Management (July 2017).
+* [13] F REE BSD P ROJECT . NETMAP(4). In FreeBSD Kernel Interfaces Manual (2017), FreeBSD 11.1-RELEASE.
+* [14] G ALLENMLLER , S., E MMERICH , P., W OHLFART , F., R AUMER , D., AND C ARLE , G. Comparison of Frameworks for High-Performance Packet IO. In Architectures for Networking and * Communications Systems (ANCS) (Oakland, CA, 2015), ACM, pp. 29–38.
+* [15] G ETTYS , J., AND N ICHOLS , K. Bufferbloat: Dark buffers in the internet. Queue 9, 11 (2011), 40.
+* [16] G ILBERTO B ERTIN . XDP in practice: integrating XDP into our DDoS mitigation pipeline. In Netdev 2.1, The Technical Conference on Linux Networking (May 2017).
+* [17] G ORRIE , L ET AL . Snabb: Simple and fast packet networking. https://github.com/snabbco/snabb.
+* [18] H AARDT , M. ioperm(2). In Linux Programmer’s Manual (1993).
+* [19] H ASI C ORP . Vagrant website. https://www.vagrantup.com/. Last visited 2018-02-02.
+* [20] H UNT , D. mempool: add stack (lifo) mempool handler, 2016. Mailing list post. http://dpdk.org/ml/archives/dev/2016-July/043106.html.
+* [21] I NTEL . DPDK Getting Started Guide for Linux. http://dpdk.org/doc/guides/linux_gsg/sys_reqs.html. Last visited 2018-02-01.
+* [22] Intel 82599 10 GbE Controller Datasheet Rev. 3.3. Intel.
+* [23] Intel Data Direct I/O Technology (Intel DDIO): A Primer. Available at https://www.intel.com/content/www/us/en/io/data-direct-i-o-technology-brief.html.
+* [24] Intel Ethernet Controller XL710 Datasheet Rev. 2.1. Intel.
+* [25] IO V ISOR P ROJECT . BPF and XDP Features by Kernel Version. https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md#xdp. Last visited 2018-02-01.
+* [26] IO V ISOR P ROJECT . Introduction to XDP. https://www.iovisor.org/technology/xdp Last visited 2018-02-01.
+* [27] JIM T HOMPSON . DPDK, VPP & pfSense 3.0. In DPDK Summit Userspace (Sept. 2017).
+* [28] JONATHAN C ORBET . User-space networking with Snabb. In LWN.net (Feb. 2017).
+* [29] KERRISK , M. mlock(2). In Linux Programmer’s Manual (2004).
+* [30] LINUX F OUNDATION . Networking Industry Leaders Join Forces to Expand New Open Source Community to Drive Development of the DPDK Project, Apr. 2017. Press release.
+* [31] LINUX K ERNEL D OCUMENTATION . Page migration. https://www.kernel.org/doc/Documentation/vm/page_migration.
+* [32] LINUX K ERNEL D OCUMENTATION . VFIO - Virtual Function I/O. https://www.kernel.org/doc/Documentation/
+* vfio.txt.
+* [33] MORRIS , R., K OHLER , E., J ANNOTTI , J., AND F RANS K AASHOEK , M. The click modular router. In Operating Systems Review - SIGOPS (Dec. 1999), vol. 33, pp. 217–231.
+* [34] NTOP . PF RING ZC (Zero Copy). http://www.ntop.org/products/packet-capture/pf_ring/pf_ring-zc-zero-copy/. Last visited 2017-11-30.
+* [35] O PEN V S WITCH P ROJECT . Open vSwitch with DPDK. http://docs.openvswitch.org/en/latest/intro/install/dpdk/ Last visited 2018-02-01.
+* [36] P FAFF , B., P ETTIT , J., K OPONEN , T., J ACKSON , E., Z HOU , A., R AJAHALME , J., G ROSS , J., W ANG , A., S TRINGER , J., S HELAR , P., A MIDON , K., AND C ASADO , M. The * design and implementation of open vswitch. In 12th USENIX Symposium on Networked Systems Design and Implementation (NSDI 15) (Oakland, CA, 2015), USENIX Association, pp. 117–130.
+* [37] P UDELKO , M. ixy - DMA allocator on normal-sized pages. https://github.com/pudelkoM/ixy/tree/contiguous-pages.
+* [38] P UDELKO , M. ixy - head pointer writeback implementation. https://github.com/pudelkoM/ixy/tree/head-pointer-writeback.
+* [39] P UDELKO , M. ixy - seccomp implementation. https://github.com/pudelkoM/ixy/tree/seccomp.
+* [40] R IZZO , L. netmap: A Novel Framework for Fast Packet I/O. In USENIX Annual Technical Conference (2012), pp. 101–112.
+* [41] S NABB P ROJECT . Tuning the performance of the lwaftr. https://github.com/snabbco/snabb/blob/master/src/program/lwaftr/doc/performance.md. Last visited 2018-02-01.
+* [42] S NORT P ROJECT . Snort 3 User Manual. https://www.snort.org/downloads/snortplus/snort_manual.pdf Last visited 2018-02-01.
+* [43] S OLARFLARE . OpenOnload Website. http://www.openonload.org/. Last visited 2017-11-30.
+* [44] S UTTER , H. Lock-Free Code: A False Sense of Security. Dr. Dobb’s Journal (Sept. 2008).
+* [45] V IRTUAL O PEN S YSTEMS S ARL . Vhost-user Protocol, 2014. https://github.com/qemu/qemu/blob/stable-2.10/docs/interop/vhost-user.txt.
+* [46] Y ASUKATA , K., H ONDA , M., S ANTRY , D., AND E GGERT , L.StackMap: Low-Latency Networking with the OS Stack and Dedicated NICs. In 2016 USENIX Annual Technical Conference (USENIX ATC 16) (Denver, CO, 2016), USENIX Association, pp. 43–56.
