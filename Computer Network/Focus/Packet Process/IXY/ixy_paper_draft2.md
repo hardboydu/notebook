@@ -203,6 +203,14 @@ Figure 1 illustrates the memory layout: the DMA descriptors in the ring to the l
 
 图1 说明了内存布局：左侧环中的DMA描述符包含存储在内存池中单独位置的数据包缓冲区的物理指针。内存池中的数据包缓冲区包含元数据字段中的物理地址。图2 显示了控制右侧环形缓冲区的RDH（头部）和RDT（尾部）寄存器，以及包含虚拟地址的本地副本，用于转换应用程序环中描述符中的物理地址。 `ixgbe.c`中的 `ixgbe_rx_batch()` 实现了接收逻辑，如数据表的第1.8.2节和第7.1节所述。它对批量数据包进行操作以提高性能。检查是否已收到数据包的一种简单方法是从 NIC 中读取头部寄存器，从而产生 PCIe 往返。硬件还通过 DMA 在描述符中设置一个标志，由于 DMA 写入由现代CPU上的最后一级高速缓存处理，因此读取便宜得多。这实际上是 LLC 高速缓存未命中和每个接收到的数据包的命中之间的差异。
 
+![Figure 1](image/ixy2img1.PNG)
+
+*Figure 1: DMA descriptors pointing into a memory pool, note that the packets in the memory are unordered as they can be free’d at different times.*
+
+![Figure 2](image/ixy2img2.PNG)
+
+*Figure 2: Overview of a receive queue. The ring uses physical addresses and is shared with the NIC.*
+
 #### 4.1.2 Transmitting Packets
 
 Transmitting packets follows the same concept and API as receiving them, but the function is more complicated because the interface between NIC and driver is asynchronous. Placing a packet into the ring does not immediately transfer it and blocking to wait for the transfer is infeasible. Hence, the ixgbe tx batch() function in ixgbe.c consists of two parts: freeing packets from previous calls that were sent out by the NIC followed by placing the current packets into the ring. The first part is often called cleaning and works similar to receiving packets: the driver checks a flag that is set by the hardware after the packet associated with the descriptor is sent out. Sent packet buffers can then be free’d, making space in the ring. Afterwards, the pointers of the packets to be sent are stored in the DMA descriptors and the tail pointer is updated accordingly.
@@ -241,11 +249,19 @@ To quantify the baseline performance and identify bottlenecks, we run the forwar
 
 为了量化基线性能并识别瓶颈，我们运行转发示例，同时将 CPU 的时钟频率从 1.2GHz 提高到2.4GHz。图3 比较了在双端口 NIC 的两个端口上转发时以及使用两个单独的 NIC 时 ixy 和 DPDK 上的转发器的吞吐量。在一个双端口 NIC 上使用两个独立的 NIC 时， ixy 和 DPDK 的性能更好表示硬件限制（可能在PCIe级别）。我们在 Intel X520（基于82599）和 Intel X540 NIC 上运行此测试，结果相同。 Ixy 需要 96 个CPU周期才能转发数据包，DPDK 只需61个。DPDK 的高性能可归功于其矢量传输路径，利用 SIMD 指令处理批次甚至比ixy更好。仅当在设备配置时未启用卸载功能时才使用DPDK的这个发送路径，即，它提供与ixy类似的特征集。在DPDK配置中禁用向量 TX路径会将每个数据包的CPU周期增加到91个周期数据包，尽管做得更多（检查更多的卸载标志），仍然比 ixy 略快。总的来说，我们认为 ixy 的速度足够快。为了进行比较，我们之前已经研究过旧版 DPDK，PF_RING 和 netmap 的性能，并测量了 DPDK 和 PF_RING的 ≈100个周期/包 的性能以及 netmap 的 ≈120个周期/包 的性能[14]。
 
+![Figure 3](image/ixy2img3.PNG)
+
+*Figure 3: Bidirectional single-core forwarding performance with varying CPU speed, batch size 32.*
+
 ### 5.2 Batching
 
 Batching is one of the main drivers for performance. DPDK even requires a minimum batch size of 4 when using the SIMD transmit path. Receiving or sending a packet involves an access to the queue index registers, invoking a costly PCIe round-trip. Figure 4 shows how the performance increases as the batch size is increased in the bidirectional forwarding scenario with two NICs. Increasing batch sizes have diminishing returns: this is especially visible when the CPU is only clocked at 1.2GHz. Reading the performance counters for all caches shows that the number of L1 cache misses per packet increases as the performance gains drop off. Too large batches thrash the L1 cache, possibly evicting lookup data structures in a real application. Therefore, batch sizes should not be chosen too large. Latency is also impacted by the batch size, but the effect is negligible compared to other buffers (e.g., NIC ring sizes are an order of magnitude larger than the batch size).
 
 批处理是性能的主要驱动因素之一。使用SIMD发送路径时，DPDK甚至要求最小批量为4。接收或发送数据包涉及访问队列索引寄存器，从而调用昂贵的PCIe往返。图4显示了在具有两个NIC的双向转发方案中，随着批量大小的增加，性能如何提高。增加批量大小的回报会减少：当CPU的时钟频率仅为1.2GHz时，这一点尤为明显。读取所有高速缓存的性能计数器表明，每个数据包的L1高速缓存未命中数随着性能增益的下降而增加。太大的批次会破坏L1缓存，可能会逐出实际应用程序中的查找数据结构。因此，批量大小不应选择太大。延迟也受批量大小的影响，但与其他缓冲区相比，效果可忽略不计（例如，NIC环大小比批量大小大一个数量级）。
+
+![Figure 4](image/ixy2img4.PNG)
+
+*Figure 4: Bidirectional single-core forwarding performance with varying batch size.*
 
 ### 5.3 Profiling
 
@@ -263,6 +279,10 @@ Our driver supports descriptor ring sizes in power-of-two increments between 64 
 
 我们的驱动程序支持描述符环大小，功率为2，增量在 64 到 4096 之间，硬件支持更多大小，但对2 的幂的限制简化了环绕处理。Linux 默认为此 NIC 的环大小为 256，DPDK的示例应用程序配置不同的大小; `l2fwd` 转发器设置 128/512 个 RX/TX 描述符。有时建议使用较大的环大小（例如8192）来提高性能[1]（源指的是实际数据包数时的大小为kB）。图5显示了具有各种环尺寸组合的ixy的吞吐量。对于大于64的环大小，最大吞吐量没有可测量的影响。可能存在更大环大小的情况可能存在：例如，产生大量数据包的应用程序明显快于 NIC 可以处理的非常快短时间。
 
+![Figure 5](image/ixy2img5.PNG)
+
+*Figure 5: Throughput with varying descriptor ring sizes.*
+
 The second performance factor that is impacted by ring sizes is the overall latency caused by unnecessary buffering. Table 2 shows the latency (measured with MoonGen hardware timestamping [11]) of the ixy forwarder with different ring sizes. The results show a linear dependency between ring size and latency when the system is overloaded, but the effect under lower loads are negligible. Full or near full buffers are no exception on systems forwarding Internet traffic due to protocols like TCP that try to fill up buffers completely [15]. We conclude that tuning tipps like setting a ring size to 8192 [1] are detrimental for latency and likely do not help with throughput. Ixy uses a default ring size of 512 at the moment as a trade-off between providing some buffer and avoiding high worst-case latencies.
 
 受环大小影响的第二个性能因素是由不必要的缓冲引起的总延迟。表2 显示了具有不同环大小的ixy前向转发器的延迟（使用MoonGen硬件时间戳[11]测量）。结果显示系统过载时环大小和延迟之间存在线性相关性，但在较低负载下的影响可忽略不计。由于像 TCP 这样试图完全填满缓冲区的协议，完全或接近完整的缓冲区在系统转发 Internet 流量时也不例外[15]。我们得出结论，调整tipps如将环大小设置为 8192 [1] 对延迟是有害的，并且可能对吞吐量没有帮助。Ixy目前使用512的默认环大小作为提供缓冲区和避免高最坏情况延迟之间的权衡。
@@ -276,6 +296,10 @@ It is not possible to allocate DMA memory on small pages from user space in Linu
 Figure 6 shows that the impact on performance of huge pages in the driver is small. The performance difference is 5.5% with the maximum ring size, more realistic ring sizes only differ by 1-3%. This is not entirely unexpected: the largest queue size of 4096 entries is only 16kiB large storing pointers to up to 16MiB packet buffers. Huge pages are designed for, and usually used with, large data structures, e.g., big lookup tables for forwarding. The effect measured here is likely larger when a real forwarding application puts additional pressure on the TLB due to its other internal data structures. One should still use huge pages for other data structures in a packet processing application, but a driver not supporting them (e.g., netmap) is not as bad as one might expect when reading claims about their importance from authors of drivers supporting them.
 
 图6显示了驱动程序中大页面性能的影响很小。最大环尺寸的性能差异为5.5%，更实际的环尺寸仅相差1-3%。这并非完全出乎意料：4096个条目的最大队列大小仅为 16kiB 大型存储指针，最多可达16MiB 数据包缓冲区。巨大的页面被设计用于并且通常与大数据结构一起使用，例如用于转发的大查找表。当真正的转发应用程序由于其其他内部数据结构而对TLB施加额外压力时，此处测量的效果可能更大。人们仍然应该在数据包处理应用程序中使用大页面用于其他数据结构，但是不支持它们的驱动程序（例如，netmap）并不像在支持它们的驱动程序的作者阅读关于它们的重要性的声明时那样糟糕。
+
+![Figure 6](image/ixy2img6.PNG)
+
+*Figure 6: Single-core forwarding performance with and without huge pages and their effect on the TLB.*
 
 ### 5.6 NUMA Considerations
 
@@ -310,6 +334,10 @@ We chose to implement the legacy variant because VirtualBox only supports the le
 VirtIO supports three different types of queues called Virtqueues: receive, transmit, and command queues. The queue sizes are controlled by the device and are fixed to 256 entries for legacy devices. Setup works the same as in the ixgbe driver: DMA memory for shared structures is allocated and passed to the device via a control register. Contrary to queues in ixgbe, a Virtqueue internally consists of a descriptor table and two rings: the available and used rings. While the table holds the complete descriptors with pointers to the physical addresses and length information of buffers, the rings only contain indices for this table as shown in Figure 7. To supply a device with new buffers, the driver first adds new descriptors into free slots in the descriptor table and then enqueues the slot indices into the available ring by advancing its head. Conversely, a device picks up new descriptor indices from this ring, takes ownership of them and then signals completion by enqueuing the indices into the used ring, where the driver finalizes the operation by clearing the descriptor from the table. The queue indices are maintained in DMA memory instead of in registers like in the ixgbe implementation. Therefore, the device needs to be informed about all modifications to queues, this is done by writing the queue ID into a control register in IO port memory region. Our driver also implements batching here to avoid unnecessary updates. This process is the same for sending and receiving packets. Our implementations are in `virtio_legacy` - `setup_tx/rx_queue()`.
 
 VirtIO支持三种不同类型的队列，称为Virtqueues：接收，传输和命令队列。队列大小由设备控制，并固定为传统设备的 256 个条目。设置与 ixgbe 驱动程序的工作方式相同：共享结构的 DMA 存储器被分配并通过控制寄存器传递给设备。与 ixgbe 中的队列相反，Virtqueue 内部由描述符表和两个环组成：可用和已使用的环。虽然该表包含指向缓冲区物理地址和长度信息的指针的完整描述符，但环仅包含此表的索引，如图7所示。为了向设备提供新缓冲区，驱动程序首先将新描述符添加到空闲槽中在描述符表中，然后通过推进其头部将插槽索引排入可用环中。相反，设备从该环中获取新的描述符索引，获取它们的所有权，然后通过将索引排入已使用的环来发信号通知，其中驱动程序通过清除表中的描述符来完成操作。队列索引保存在DMA内存中，而不是像 ixgbe 实现中的寄存器中那样。因此，需要通知设备有关队列的所有修改，这是通过将队列ID写入IO端口存储区域中的控制寄存器来完成的。我们的驱动程序也在这里实现批处理以避免不必要的更此过程与发送和接收数据包相同。我们的实现在`virtio_legacy` - `setup_tx/rx_queue()`中。
+
+![Figure 7](image/ixy2img7.PNG)
+
+*Figure 7: Overview of a Virtqueue. Descriptor table contains physical addresses, the queues indices into the descriptor table.*
 
 The command queue is a transmit queue that is used to control most features of the device instead of via registers. For example, enabling or disabling promiscuous mode in `virtio_legacy_set_promiscuous()` is done by sending a command packet with the appropriate flags through this queue. See specification Section 5.1.6.5 for details on the command queue. This way of controlling devices is not unique to virtual devices. For example, the Intel XL710 40Gbit/s configures most features by sending messages to the firmware running on the device [24].
 
