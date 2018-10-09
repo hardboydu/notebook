@@ -128,7 +128,7 @@ lrwxrwxrwx. 1 root root       0 Oct  1 10:55 subsystem -> ../../../../bus/pci
 -rw-------. 1 root root   32768 Oct  1 11:23 vpd
 ```
 
-然后参考文档 `Documentation/filesystems/sysfs-pci.txt`
+然后参考文档 [`Documentation/filesystems/sysfs-pci.txt`](https://www.kernel.org/doc/Documentation/filesystems/sysfs-pci.txt)
 
 | file                 | function
 |----------------------|------------------------------------------------------
@@ -156,7 +156,7 @@ lrwxrwxrwx. 1 root root       0 Oct  1 10:55 subsystem -> ../../../../bus/pci
 * `binary`  - file contains binary data
 * `cpumask` - file contains a cpumask type
 
-config 文件为PCI设备的 配置空间，二进制结构，可以读写。
+config 文件为PCI设备的**通用配置空间**的映射，二进制结构，可以读写。
 
 **LDD3** 第12章的描述：
 
@@ -236,6 +236,8 @@ struct ixy_device* ixgbe_init(const char* pci_addr, uint16_t rx_queues, uint16_t
 
 > 设备ID 的类型 需要参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》 和 《[Intel ®  82599 10 GbE Controller Specification Update](https://www.intel.com/content/dam/www/public/us/en/documents/specification-updates/82599-10-gbe-controller-spec-update.pdf)》，在规格说明中 `0x10fb` 的设备类型为 `82599 (SFI/SFP+)`
 
+###### 设备对象
+
 `device.h` 定义的 `struct ixy_device` 为 ixy 设备的通用结构：
 
 ```c
@@ -263,7 +265,9 @@ struct ixgbe_device {
 };
 ```
 
-ixgbe设备通过pci_map_resource 将 BAR0 地址空间映射到 ixy 应用的地址空间，并由 ixgbe 设备结构中的 addr 成员变量指向这个地址空间。
+###### 映射 `BAR0` 的 `resource`
+
+ixgbe设备通过 `pci_map_resource` 将 BAR0 对应的 `resource` 地址空间映射到 ixy 应用的地址空间，并由 ixgbe 设备结构中的 addr 成员变量指向这个地址空间，这个地址空间包括了 82599 所有的统计和配置寄存器的映射。
 
 ```c
 dev->addr = pci_map_resource(pci_addr);
@@ -285,12 +289,123 @@ uint8_t* pci_map_resource(const char* pci_addr) {
 
 以后 ixgbe 设备的操作都需要通过读写这个内存区域来实现。
 
+参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》 *table 8-1 the 82599 Address Regions*
+
+
+
+###### 卸载原有驱动程序
+
+在映射 `resource` 之前，需要移除当前设备上已经挂接的驱动程序 `remove_driver`。
+
+```c
+void remove_driver(const char* pci_addr) {
+    char path[PATH_MAX];
+    snprintf(path, PATH_MAX, "/sys/bus/pci/devices/%s/driver/unbind", pci_addr);
+    int fd = open(path, O_WRONLY);
+    if (fd == -1) {
+        debug("no driver loaded");
+        return;
+    }
+    if (write(fd, pci_addr, strlen(pci_addr)) != (ssize_t) strlen(pci_addr)) {
+        warn("failed to unload driver for device %s", pci_addr);
+    }
+    check_err(close(fd), "close");
+}
+```
+
+* 参考 [Manual driver binding and unbinding](https://lwn.net/Articles/143397/)
+* 参考 [使用 `/sys` 文件系统访问 Linux 内核](https://www.ibm.com/developerworks/cn/linux/l-cn-sysfs/index.html)\
+* 参考 [Documentation/ABI/testing/sysfs-bus-pci.txt](https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-bus-pci)
+
+sysfs-buf-pci 中的描述：
+
+```text
+What:           /sys/bus/pci/drivers/.../bind
+Date:           December 2003
+Contact:        linux-pci@vger.kernel.org
+Description:
+                Writing a device location to this file will cause
+                the driver to attempt to bind to the device found at
+                this location. This is useful for overriding default
+                bindings.  The format for the location is: DDDD:BB:DD.F.
+                That is Domain:Bus:Device.Function and is the same as
+                found in /sys/bus/pci/devices/.  For example:
+                # echo 0000:00:19.0 > /sys/bus/pci/drivers/foo/bind
+                (Note: kernels before 2.6.28 may require echo -n).
+
+What:           /sys/bus/pci/drivers/.../unbind
+Date:           December 2003
+Contact:        linux-pci@vger.kernel.org
+Description:
+                Writing a device location to this file will cause the
+                driver to attempt to unbind from the device found at
+                this location.	This may be useful when overriding default
+                bindings.  The format for the location is: DDDD:BB:DD.F.
+                That is Domain:Bus:Device.Function and is the same as
+                found in /sys/bus/pci/devices/. For example:
+                # echo 0000:00:19.0 > /sys/bus/pci/drivers/foo/unbind
+                (Note: kernels before 2.6.28 may require echo -n).
+```
+
+###### 启用 DMA 功能
+
+在卸载完驱动之后 需要启动 dma 功能 `enable_dma` ：
+
+```c
+void enable_dma(const char* pci_addr) {
+    char path[PATH_MAX];
+    snprintf(path, PATH_MAX, "/sys/bus/pci/devices/%s/config", pci_addr);
+    int fd = check_err(open(path, O_RDWR), "open pci config");
+    // write to the command register (offset 4) in the PCIe config space
+    // bit 2 is "bus master enable", see PCIe 3.0 specification section 7.5.1.1
+    assert(lseek(fd, 4, SEEK_SET) == 4);
+    uint16_t dma = 0;
+    assert(read(fd, &dma, 2) == 2);
+    dma |= 1 << 2;
+    assert(lseek(fd, 4, SEEK_SET) == 4);
+    assert(write(fd, &dma, 2) == 2);
+    check_err(close(fd), "close");
+}
+```
+
+>**PCIe 3.0 specification section 7.5.1.1**
+>
+>**Bit Location** : 2
+>
+>**Bus Master Enable** – Controls the ability of a PCI Express Endpoint to issue Memory 95 and I/O Read/Write Requests, and the ability of a Root or Switch Port to forward Memory and I/O Read/Write Requests in the Upstream direction
+>
+>Endpoints:
+>
+>When this bit is Set, the PCI Express Function is allowed to issue Memory or I/O Requests.
+>
+>When this bit is Clear, the PCI Express Function is not allowed to issue any Memory or I/O Requests.
+>
+>Note that as MSI/MSI-X interrupt Messages are in-band memory writes, setting the Bus Master Enable bit to 0b disables MSI/MSI-X interrupt Messages as well.
+>
+>Requests other than Memory or I/O Requests are not controlled by this bit.
+>
+>Default value of this bit is 0b.
+>
+>This bit is hardwired to 0b if a Function does not generate Memory or I/O Requests.
+>
+>Root and Switch Ports:
+>
+>This bit controls forwarding of Memory or I/O Requests by a Switch or Root Port in the Upstream direction. When this bit is 0b, Memory and I/O Requests received at a Root Port or the Downstream side of a Switch Port must be handled as Unsupported Requests (UR), and for Non-Posted Requests a Completion with UR completion status must be returned. This bit does not affect forwarding of Completions in either the Upstream or Downstream direction. 
+>
+>The forwarding of Requests other than Memory or I/O Requests is not controlled by this bit.
+>
+>Default value of this bit is 0b.
+
+###### **申请接收和发送队列**
+
 初始化完毕相应接口后，ixgbe_init 需要申请 接收和发送 队列：
 
 ```c
     dev->rx_queues = calloc(rx_queues, sizeof(struct ixgbe_rx_queue) + sizeof(void*) * MAX_RX_QUEUE_ENTRIES);
     dev->tx_queues = calloc(tx_queues, sizeof(struct ixgbe_tx_queue) + sizeof(void*) * MAX_TX_QUEUE_ENTRIES);
 ```
+
+###### **重置并初始化网卡**
 
 最后 `ixgbe_init` 调用 `reset_and_init` 重置并重新初始化网卡：
 
@@ -346,3 +461,103 @@ static void reset_and_init(struct ixgbe_device* dev) {
     wait_for_link(dev);
 }
 ```
+
+参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》
+
+>*4.6.3 Initialization Sequence*
+>
+>The following sequence of commands is typically issued to the device by the software device driver in order to initialize the 82599 for normal operation. The major initialization steps are:
+>
+>通常由软件设备驱动程序向设备发出以下命令序列，以便初始化82599以进行正常操作。 主要的初始化步骤是：
+>
+>1. Disable interrupts. 禁用中断
+>2. Issue global reset and perform general configuration 发出全局重置并执行常规配置 (see Section 4.6.3.2).
+>3. Wait for EEPROM auto read completion. 等待EEPROM自动读取完成。
+>4. Wait for DMA initialization done 等待DNA初始化完成 (RDRXCTL.DMAIDONE).
+>5. Setup the PHY and the link 设置 PHY 和 链路层 (see Section 4.6.4).
+>6. Initialize all statistical counters 初始化所有统计计数器 (see Section 4.6.5).
+>7. Initialize receive 初始化接收 (see Section 4.6.7).
+>8. Initialize transmit 初始化发送 (see Section 4.6.8).
+>9. Enable interrupts 初始化中断 (see Section 4.6.3.1).
+
+ixy 代码在禁用中断后并没有重新启用中断。
+
+###### **初始化接收**
+
+```c
+// see section 4.6.7
+// it looks quite complicated in the data sheet, but it's actually really easy because we don't need fancy features
+static void init_rx(struct ixgbe_device* dev) {
+    // make sure that rx is disabled while re-configuring it
+    // the datasheet also wants us to disable some crypto-offloading related rx paths (but we don't care about them)
+    clear_flags32(dev->addr, IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
+    // no fancy dcb or vt, just a single 128kb packet buffer for us
+    set_reg32(dev->addr, IXGBE_RXPBSIZE(0), IXGBE_RXPBSIZE_128KB);
+    for (int i = 1; i < 8; i++) {
+        set_reg32(dev->addr, IXGBE_RXPBSIZE(i), 0);
+    }
+
+    // always enable CRC offloading
+    set_flags32(dev->addr, IXGBE_HLREG0, IXGBE_HLREG0_RXCRCSTRP);
+    set_flags32(dev->addr, IXGBE_RDRXCTL, IXGBE_RDRXCTL_CRCSTRIP);
+
+    // accept broadcast packets
+    set_flags32(dev->addr, IXGBE_FCTRL, IXGBE_FCTRL_BAM);
+
+    // per-queue config, same for all queues
+    for (uint16_t i = 0; i < dev->ixy.num_rx_queues; i++) {
+        debug("initializing rx queue %d", i);
+        // enable advanced rx descriptors, we could also get away with legacy descriptors, but they aren't really easier
+        set_reg32(dev->addr, IXGBE_SRRCTL(i), (get_reg32(dev->addr, IXGBE_SRRCTL(i)) & ~IXGBE_SRRCTL_DESCTYPE_MASK) | IXGBE_SRRCTL_DESCTYPE_ADV_ONEBUF);
+        // drop_en causes the nic to drop packets if no rx descriptors are available instead of buffering them
+        // a single overflowing queue can fill up the whole buffer and impact operations if not setting this flag
+        set_flags32(dev->addr, IXGBE_SRRCTL(i), IXGBE_SRRCTL_DROP_EN);
+        // setup descriptor ring, see section 7.1.9
+        uint32_t ring_size_bytes = NUM_RX_QUEUE_ENTRIES * sizeof(union ixgbe_adv_rx_desc);
+        struct dma_memory mem = memory_allocate_dma(ring_size_bytes, true);
+        // neat trick from Snabb: initialize to 0xFF to prevent rogue memory accesses on premature DMA activation
+        memset(mem.virt, -1, ring_size_bytes);
+        set_reg32(dev->addr, IXGBE_RDBAL(i), (uint32_t) (mem.phy & 0xFFFFFFFFull));
+        set_reg32(dev->addr, IXGBE_RDBAH(i), (uint32_t) (mem.phy >> 32));
+        set_reg32(dev->addr, IXGBE_RDLEN(i), ring_size_bytes);
+        debug("rx ring %d phy addr:  0x%012lX", i, mem.phy);
+        debug("rx ring %d virt addr: 0x%012lX", i, (uintptr_t) mem.virt);
+        // set ring to empty at start
+        set_reg32(dev->addr, IXGBE_RDH(i), 0);
+        set_reg32(dev->addr, IXGBE_RDT(i), 0);
+        // private data for the driver, 0-initialized
+        struct ixgbe_rx_queue* queue = ((struct ixgbe_rx_queue*)(dev->rx_queues)) + i;
+        queue->num_entries = NUM_RX_QUEUE_ENTRIES;
+        queue->rx_index = 0;
+        queue->descriptors = (union ixgbe_adv_rx_desc*) mem.virt;
+    }
+
+    // last step is to set some magic bits mentioned in the last sentence in 4.6.7
+    set_flags32(dev->addr, IXGBE_CTRL_EXT, IXGBE_CTRL_EXT_NS_DIS);
+    // this flag probably refers to a broken feature: it's reserved and initialized as '1' but it must be set to '0'
+    // there isn't even a constant in ixgbe_types.h for this flag
+    for (uint16_t i = 0; i < dev->ixy.num_rx_queues; i++) {
+        clear_flags32(dev->addr, IXGBE_DCA_RXCTRL(i), 1 << 12);
+    }
+
+    // start RX
+    set_flags32(dev->addr, IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
+}
+```
+
+参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》 *Table 1-9 Rx Data Flow*
+
+|Step | Description|
+|-----|------------|
+|1    | The host creates a descriptor ring and configures one of the 82599’s receive queues with the address location, length, head, and tail pointers of the ring (one of 128 available Rx queues) <br> 主机创建一个描述符环，并使用环的地址位置，长度，头和尾指针（128 个可用的 Rx 队列之一）配置 82599 的接收队列之一
+|2    | The host initializes descriptor(s) that point to empty data buffer(s). The host places these descriptor(s) in the correct location at the appropriate Rx ring. <br> 主机初始化指向空数据缓冲区的描述符。 主机将这些描述符放在适当的Rx环的正确位置。
+|3    | The host updates the appropriate Queue Tail Pointer (RDT). <br> 主机更新相应的队列尾指针（RDT）。
+|6    | A packet enters the Rx MAC. <br> 数据包进入Rx MAC。
+|7    | The MAC forwards the packet to the Rx filter. <br> MAC将数据包转发到Rx过滤器。
+|8    | If the packet matches the pre-programmed criteria of the Rx filtering, it is forwarded to an Rx FIFO. <br> 如果数据包与Rx过滤的预编程标准匹配，则将其转发到Rx FIFO。
+|9    | The receive DMA fetches the next descriptor from the appropriate host memory ring to be used for the next received packet. <br> 接收DMA从适当的主机存储器环中取出下一个描述符，以用于下一个接收的数据包。
+|10   | After the entire packet is placed into an Rx FIFO, the receive DMA posts the packet data to the location indicated by the descriptor through the PCIe interface. If the packet size is greater than the buffer size, more descriptors are fetched and their buffers are used for the received packet. <br> 在将整个数据包放入Rx FIFO 之后，接收 DMA 通过 PCIe 接口将数据包数据发布到描述符指示的位置。 如果数据包大小大于缓冲区大小，则会获取更多描述符，并将其缓冲区用于接收的数据包。
+|11   | When the packet is placed into host memory, the receive DMA updates all the descriptor(s) that were used by the packet data. <br> 当数据包放入主机内存时，接收 DMA 会更新数据包数据使用的所有描述符。
+|12   | The receive DMA writes back the descriptor content along with status bits that indicate the packet information including what offloads were done on that packet. <br> 接收 DMA 将描述符内容与状态位一起写回，该状态位指示分组信息，包括对该分组进行的卸载。
+|13   | The 82599 initiates an interrupt to the host to indicate that a new received packet is ready in host memory. <br> 82599向主机发起中断，以指示新接收的数据包已准备好在主机内存中。
+|14   | The host reads the packet data and sends it to the TCP/IP stack for further processing. The host releases the associated buffer(s) and descriptor(s) once they are no longer in use. <br> 主机读取数据包数据并将其发送到 TCP/IP 堆栈以进行进一步处理。 一旦不再使用，主机就会释放相关的缓冲区和描述符。
