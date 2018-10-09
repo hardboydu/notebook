@@ -561,3 +561,171 @@ static void init_rx(struct ixgbe_device* dev) {
 |12   | The receive DMA writes back the descriptor content along with status bits that indicate the packet information including what offloads were done on that packet. <br> 接收 DMA 将描述符内容与状态位一起写回，该状态位指示分组信息，包括对该分组进行的卸载。
 |13   | The 82599 initiates an interrupt to the host to indicate that a new received packet is ready in host memory. <br> 82599向主机发起中断，以指示新接收的数据包已准备好在主机内存中。
 |14   | The host reads the packet data and sends it to the TCP/IP stack for further processing. The host releases the associated buffer(s) and descriptor(s) once they are no longer in use. <br> 主机读取数据包数据并将其发送到 TCP/IP 堆栈以进行进一步处理。 一旦不再使用，主机就会释放相关的缓冲区和描述符。
+
+参考 [stackoverflow descriptor concept in NIC](https://stackoverflow.com/questions/36625892/descriptor-concept-in-nic)
+
+![image1](image/ixy3img02.png)
+
+```c
+// allocated for each rx queue, keeps state for the receive function
+struct ixgbe_rx_queue {
+    volatile union ixgbe_adv_rx_desc* descriptors;
+    struct mempool* mempool;
+    uint16_t num_entries;
+    // position we are reading from
+    uint16_t rx_index;
+    // virtual addresses to map descriptors back to their mbuf for freeing
+    void* virtual_addresses[];
+};
+```
+
+```c
+/* Receive Descriptor - Advanced */
+union ixgbe_adv_rx_desc {
+    struct {
+        __le64 pkt_addr; /* Packet buffer address */
+        __le64 hdr_addr; /* Header buffer address */
+    } read;
+    struct {
+        struct {
+            union {
+                __le32 data;
+                struct {
+                    __le16 pkt_info; /* RSS, Pkt type */
+                    __le16 hdr_info; /* Splithdr, hdrlen */
+                } hs_rss;
+            } lo_dword;
+            union {
+                __le32 rss; /* RSS Hash */
+                struct {
+                    __le16 ip_id; /* IP id */
+                    __le16 csum; /* Packet Checksum */
+                } csum_ip;
+            } hi_dword;
+        } lower;
+        struct {
+            __le32 status_error; /* ext status/error */
+            __le16 length; /* Packet length */
+            __le16 vlan; /* VLAN tag */
+        } upper;
+    } wb;  /* writeback */
+};
+```
+
+```c
+// everything here contains virtual addresses, the mapping to physical addresses are in the pkt_buf
+struct mempool {
+    void* base_addr;
+    uint32_t buf_size;
+    uint32_t num_entries;
+    // memory is managed via a simple stack
+    // replacing this with a lock-free queue (or stack) makes this thread-safe
+    uint32_t free_stack_top;
+    // the stack contains the entry id, i.e., base_addr + entry_id * buf_size is the address of the buf
+    uint32_t free_stack[];
+};
+```
+
+```c
+static void start_rx_queue(struct ixgbe_device* dev, int queue_id) {
+    debug("starting rx queue %d", queue_id);
+    struct ixgbe_rx_queue* queue = ((struct ixgbe_rx_queue*)(dev->rx_queues)) + queue_id;
+    // 2048 as pktbuf size is strictly speaking incorrect:
+    // we need a few headers (1 cacheline), so there's only 1984 bytes left for the device
+    // but the 82599 can only handle sizes in increments of 1 kb; but this is fine since our max packet size
+    // is the default MTU of 1518
+    // this has to be fixed if jumbo frames are to be supported
+    // mempool should be >= the number of rx and tx descriptors for a forwarding application
+    uint32_t mempool_size = NUM_RX_QUEUE_ENTRIES + NUM_TX_QUEUE_ENTRIES;
+    queue->mempool = memory_allocate_mempool(mempool_size < 4096 ? 4096 : mempool_size, 2048);
+    if (queue->num_entries & (queue->num_entries - 1)) {
+        error("number of queue entries must be a power of 2");
+    }
+    for (int i = 0; i < queue->num_entries; i++) {
+        volatile union ixgbe_adv_rx_desc* rxd = queue->descriptors + i;
+        struct pkt_buf* buf = pkt_buf_alloc(queue->mempool);
+        if (!buf) {
+            error("failed to allocate rx descriptor");
+        }
+        rxd->read.pkt_addr = buf->buf_addr_phy + offsetof(struct pkt_buf, data);
+        rxd->read.hdr_addr = 0;
+        // we need to return the virtual address in the rx function which the descriptor doesn't know by default
+        queue->virtual_addresses[i] = buf;
+    }
+    // enable queue and wait if necessary
+    set_flags32(dev->addr, IXGBE_RXDCTL(queue_id), IXGBE_RXDCTL_ENABLE);
+    wait_set_reg32(dev->addr, IXGBE_RXDCTL(queue_id), IXGBE_RXDCTL_ENABLE);
+    // rx queue starts out full
+    set_reg32(dev->addr, IXGBE_RDH(queue_id), 0);
+    // was set to 0 before in the init function
+    set_reg32(dev->addr, IXGBE_RDT(queue_id), queue->num_entries - 1);
+}
+```
+
+```c
+// allocate a memory pool from which DMA'able packet buffers can be allocated
+// this is currently not yet thread-safe, i.e., a pool can only be used by one thread,
+// this means a packet can only be sent/received by a single thread
+// entry_size can be 0 to use the default
+struct mempool* memory_allocate_mempool(uint32_t num_entries, uint32_t entry_size) {
+    entry_size = entry_size ? entry_size : 2048;
+    // require entries that neatly fit into the page size, this makes the memory pool much easier
+    // otherwise our base_addr + index * size formula would be wrong because we can't cross a page-boundary
+    if (HUGE_PAGE_SIZE % entry_size) {
+        error("entry size must be a divisor of the huge page size (%d)", HUGE_PAGE_SIZE);
+    }
+    struct mempool* mempool = (struct mempool*) malloc(sizeof(struct mempool) + num_entries * sizeof(uint32_t));
+    struct dma_memory mem = memory_allocate_dma(num_entries * entry_size, false);
+    mempool->num_entries = num_entries;
+    mempool->buf_size = entry_size;
+    mempool->base_addr = mem.virt;
+    mempool->free_stack_top = num_entries;
+    for (uint32_t i = 0; i < num_entries; i++) {
+        mempool->free_stack[i] = i;
+        struct pkt_buf* buf = (struct pkt_buf*) (((uint8_t*) mempool->base_addr) + i * entry_size);
+        // physical addresses are not contiguous within a pool, we need to get the mapping
+        // minor optimization opportunity: this only needs to be done once per page
+        buf->buf_addr_phy = virt_to_phys(buf);
+        buf->mempool_idx = i;
+        buf->mempool = mempool;
+        buf->size = 0;
+    }
+    return mempool;
+}
+```
+
+```c
+// allocate memory suitable for DMA access in huge pages
+// this requires hugetlbfs to be mounted at /mnt/huge
+// not using anonymous hugepages because hugetlbfs can give us multiple pages with contiguous virtual addresses
+// allocating anonymous pages would require manual remapping which is more annoying than handling files
+struct dma_memory memory_allocate_dma(size_t size, bool require_contiguous) {
+    // round up to multiples of 2 MB if necessary, this is the wasteful part
+    // this could be fixed by co-locating allocations on the same page until a request would be too large
+    // when fixing this: make sure to align on 128 byte boundaries (82599 dma requirement)
+    if (size % HUGE_PAGE_SIZE) {
+        size = ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS;
+    }
+    if (require_contiguous && size > HUGE_PAGE_SIZE) {
+        // this is the place to implement larger contiguous physical mappings if that's ever needed
+        error("could not map physically contiguous memory");
+    }
+    // unique filename, C11 stdatomic.h requires a too recent gcc, we want to support gcc 4.8
+    uint32_t id = __sync_fetch_and_add(&huge_pg_id, 1);
+    char path[PATH_MAX];
+    snprintf(path, PATH_MAX, "/mnt/huge/ixy-%d-%d", getpid(), id);
+    // temporary file, will be deleted to prevent leaks of persistent pages
+    int fd = check_err(open(path, O_CREAT | O_RDWR, S_IRWXU), "open hugetlbfs file, check that /mnt/huge is mounted");
+    check_err(ftruncate(fd, (off_t) size), "allocate huge page memory, check hugetlbfs configuration");
+    void* virt_addr = (void*) check_err(mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_HUGETLB, fd, 0), "mmap hugepage");
+    // never swap out DMA memory
+    check_err(mlock(virt_addr, size), "disable swap for DMA memory");
+    // don't keep it around in the hugetlbfs
+    close(fd);
+    unlink(path);
+    return (struct dma_memory) {
+        .virt = virt_addr,
+        .phy = virt_to_phys(virt_addr)
+    };
+}
+```
