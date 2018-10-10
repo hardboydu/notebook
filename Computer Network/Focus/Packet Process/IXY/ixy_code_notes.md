@@ -564,7 +564,7 @@ static void init_rx(struct ixgbe_device* dev) {
 
 参考 [stackoverflow descriptor concept in NIC](https://stackoverflow.com/questions/36625892/descriptor-concept-in-nic)
 
-![image1](image/ixy3img02.png)
+![image2](image/ixy3img02.PNG)
 
 ```c
 // allocated for each rx queue, keeps state for the receive function
