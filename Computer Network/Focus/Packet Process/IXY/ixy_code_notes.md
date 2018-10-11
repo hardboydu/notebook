@@ -1,8 +1,6 @@
 # IXY 代码的阅读笔记
 
-## 1 起点 `ixy-fwd.c`
-
-### 1.1 初始化设备
+## 1 起点 `ixy-fwd.c` 初始化设备
 
 ```c
 int main(int argc, char* argv[]) {
@@ -18,11 +16,12 @@ int main(int argc, char* argv[]) {
     struct ixy_device* dev2 = ixy_init(argv[2], 1, 1);
 ```
 
-#### 1.1.1 创建并初始化 `ixy` 设备对象
+### 1.1 创建并初始化 `ixy` 设备对象
 
 ```c
 struct ixy_device* ixy_init(const char* pci_addr, uint16_t rx_queues, uint16_t tx_queues) {
     // Read PCI configuration space
+    // 读取 PCI 设备的配置空间
     int config = pci_open_resource(pci_addr, "config");
     uint16_t vendor_id = read_io16(config, 0);
     uint16_t device_id = read_io16(config, 2);
@@ -40,17 +39,48 @@ struct ixy_device* ixy_init(const char* pci_addr, uint16_t rx_queues, uint16_t t
 }
 ```
 
-在初始化 设备 对象之前，首先要读取 PCI 设备信息。
+#### 1.1.1 打开 PCI 设备的配置空间
+
+初始化设备的第一步，就是要获得 `PCIe` 设备的配置空间，通过函数 `pci_open_resource` 获取 PCI 配置空间映射到sysfs文件系统的文件描述符：
 
 ```c
 int config = pci_open_resource(pci_addr, "config");
-uint16_t vendor_id = read_io16(config, 0);
-uint16_t device_id = read_io16(config, 2);
-uint32_t class_id = read_io32(config, 8) >> 24;
+
+/* read some configure */
+/* ... */
+
 close(config);
 ```
 
-分别读取了三个变量 `vendor_id` 厂商ID，`device_id` 设备ID，`class_id` 类别的高 8 位（也就是分组信息），这里分组信息必须为 2 也就是 network 类：
+`sysfs` 中对应总线地址下文件 `config` 文件就是此 `PCIe` 设备的配置空间映射文件:
+
+```sh
+/sys/bus/pci/devices/<bus id>/config
+```
+
+```c
+int pci_open_resource(const char* pci_addr, const char* resource) {
+    char path[PATH_MAX];
+    snprintf(path, PATH_MAX, "/sys/bus/pci/devices/%s/%s", pci_addr, resource);
+    debug("Opening PCI resource at %s", path);
+    int fd = check_err(open(path, O_RDWR), "open pci resource");
+    return fd;
+}
+```
+
+在读取完 `PCIe` 配置后，应关闭此文件。
+
+#### 1.1.2 读取设备识别信息
+
+```c
+    uint16_t vendor_id = read_io16(config, 0);
+    uint16_t device_id = read_io16(config, 2);
+    uint32_t class_id = read_io32(config, 8) >> 24;
+```
+
+这里读取了三个配置信息三个变量 `vendor_id` 厂商ID，`device_id` 设备ID，`class_id` 类别的高 8 位（也就是分组信息）。
+
+这里分组信息必须为 2 也就是 network 类：
 
 ```c
     if (class_id != 2) {
@@ -69,141 +99,9 @@ close(config);
     }
 ```
 
-##### 1.1.1.1 读取 `PCIe` 设备的配置信息，识别设备类型
+#### 1.1.3 初始化 `ixgbe` 设备
 
-读取 `PCIe` 设备的配置信息，是通过读取 `sysfs` 中的文件 `/sys/bus/pci/devices/<bus id>/config` 实现的。
-
-```c
-int pci_open_resource(const char* pci_addr, const char* resource) {
-    char path[PATH_MAX];
-    snprintf(path, PATH_MAX, "/sys/bus/pci/devices/%s/%s", pci_addr, resource);
-    debug("Opening PCI resource at %s", path);
-    int fd = check_err(open(path, O_RDWR), "open pci resource");
-    return fd;
-}
-```
-
-###### sysfs 中的 `PCI` 设备信息
-
-首先先看一下在我的服务器上实际显示情况：
-
-```sh
-[root@localhost ~]# ll /sys/bus/pci/devices/0000\:02\:00.0/
-total 0
--rw-r--r--. 1 root root    4096 Oct  1 11:23 broken_parity_status
--r--r--r--. 1 root root    4096 Oct  1 11:23 class
--rw-r--r--. 1 root root    4096 Oct  1 10:55 config
--r--r--r--. 1 root root    4096 Oct  1 11:23 consistent_dma_mask_bits
--rw-r--r--. 1 root root    4096 Oct  1 11:23 d3cold_allowed
--r--r--r--. 1 root root    4096 Oct  1 10:55 device
--r--r--r--. 1 root root    4096 Oct  1 11:23 dma_mask_bits
-lrwxrwxrwx. 1 root root       0 Oct  1 10:55 driver -> ../../../../bus/pci/drivers/ixgbe
--rw-r--r--. 1 root root    4096 Oct  1 11:23 driver_override
--rw-r--r--. 1 root root    4096 Oct  1 11:23 enable
-lrwxrwxrwx. 1 root root       0 Oct  1 11:23 firmware_node -> ../../../LNXSYSTM:00/device:00/PNP0A08:00/device:6c/device:6d
--r--r--r--. 1 root root    4096 Oct  1 11:23 irq
--r--r--r--. 1 root root    4096 Oct  1 11:23 local_cpulist
--r--r--r--. 1 root root    4096 Oct  1 11:23 local_cpus
--r--r--r--. 1 root root    4096 Oct  1 11:23 modalias
--rw-r--r--. 1 root root    4096 Oct  1 11:23 msi_bus
-drwxr-xr-x. 2 root root       0 Oct  1 11:23 msi_irqs
-drwxr-xr-x. 3 root root       0 Oct  1 10:55 net
--r--r--r--. 1 root root    4096 Oct  1 11:23 numa_node
-drwxr-xr-x. 2 root root       0 Oct  1 11:23 power
---w--w----. 1 root root    4096 Oct  1 11:23 remove
---w--w----. 1 root root    4096 Oct  1 11:23 rescan
---w-------. 1 root root    4096 Oct  1 11:23 reset
--r--r--r--. 1 root root    4096 Oct  1 11:23 resource
--rw-------. 1 root root 8388608 Oct  1 11:23 resource0
--rw-------. 1 root root      32 Oct  1 11:23 resource2
--rw-------. 1 root root   16384 Oct  1 11:23 resource4
--rw-------. 1 root root 4194304 Oct  1 11:23 rom
--rw-rw-r--. 1 root root    4096 Oct  1 11:23 sriov_numvfs
--r--r--r--. 1 root root    4096 Oct  1 11:23 sriov_totalvfs
-lrwxrwxrwx. 1 root root       0 Oct  1 10:55 subsystem -> ../../../../bus/pci
--r--r--r--. 1 root root    4096 Oct  1 11:23 subsystem_device
--r--r--r--. 1 root root    4096 Oct  1 11:23 subsystem_vendor
--rw-r--r--. 1 root root    4096 Oct  1 10:55 uevent
--r--r--r--. 1 root root    4096 Oct  1 10:55 vendor
--rw-------. 1 root root   32768 Oct  1 11:23 vpd
-```
-
-然后参考文档 [`Documentation/filesystems/sysfs-pci.txt`](https://www.kernel.org/doc/Documentation/filesystems/sysfs-pci.txt)
-
-| file                 | function
-|----------------------|------------------------------------------------------
-| class                | PCI class (ascii, ro)
-| config               | PCI config space (binary, rw)
-| device               | PCI device (ascii, ro)
-| enable               | Whether the device is enabled (ascii, rw)
-| irq                  | IRQ number (ascii, ro)
-| local_cpus           | nearby CPU mask (cpumask, ro)
-| remove               | remove device from kernel's list (ascii, wo)
-| resource             | PCI resource host addresses (ascii, ro)
-| resource0..N         | PCI resource N, if present (binary, mmap, rw[1])
-| resource0_wc..N_wc   | PCI WC map resource N, if prefetchable (binary, mmap)
-| revision             | PCI revision (ascii, ro)
-| rom                  | PCI ROM resource, if present (binary, ro)
-| subsystem_device     | PCI subsystem device (ascii, ro)
-| subsystem_vendor     | PCI subsystem vendor (ascii, ro)
-| vendor               | PCI vendor (ascii, ro)
-
-* `ro`      - read only file
-* `rw`      - file is readable and writable
-* `wo`      - write only file
-* `mmap`    - file is mmapable
-* `ascii`   - file contains ascii text
-* `binary`  - file contains binary data
-* `cpumask` - file contains a cpumask type
-
-config 文件为PCI设备的**通用配置空间**的映射，二进制结构，可以读写。
-
-**LDD3** 第12章的描述：
-
-The file `config` is a binary file that allows the raw `PCI` config information to be read from the device (just like the `/proc/bus/pci/*/*` provides.) The files `vendor`, `device`, `subsystem_device`, `subsystem_vendor`, and `class` all refer to the specific values of this `PCI` device (all `PCI` devices provide this information.) The file `irq` shows the current `IRQ` assigned to this `PCI` device, and the file `resource` shows the current memory resources allocated by this device.
-
-`config`文件是一个二进制文件，允许从设备读取原始的 `PCI` 配置信息（就像 `/proc/bus/pci/*/*` 提供的那样）。`vendor`，`device`，`subsystem_device`，`subsystem_vendor` 和 `class` 都表示该 `PCI` 设备的特定值（所有PCI设备都提供此信息）。文件 irq 显示分配给此 `PCI` 设备的当前IRQ，`resource` 显示此设备分配的当前内存资源。
-
-![image1](image/ixy3img01.PNG)
-
-*Figure 12-2. The standardized PCI configuration registers*
-
-Three or five PCI registers identify a device: `vendorID` , `deviceID` , and `class` are the three that are always used. Every PCI manufacturer assigns proper values to these read-only registers, and the driver can use them to look for the device. Additionally, the fields `subsystem vendorID` and `subsystem deviceID` are sometimes set by the vendor to further differentiate similar devices.
-
-用三个或五个PCI寄存器可标识一个设备：`vendorID` , `deviceID` , 和 `class`是常用的三个寄存器。每个PCI制造商会将正确的值赋予这三个只读寄存器，驱动程序可利用它们查询设备。此外，有时厂商利用 `subsystem vendorID` 和 `subsystem deviceID` 两个字段来进一步区分相似的设备。
-
-**vendorID**
-
-This 16-bit register identifies a hardware manufacturer. For instance, every Intel device is marked with the same vendor number, 0x8086 . There is a global registry of such numbers, maintained by the PCI Special Interest Group, and manufacturers must apply to have a unique number assigned to them.
-
-这个 16 位的寄存器，用于标识硬件制造商。例如，每个 Intel 设备被标识为同一个厂商编号 `0x8086`，`PCI Special Interest Group` 维护有一个全球的厂商编号注册表，制造商必须申请一个唯一编号并赋予它们的寄存器。
-
-**deviceID**
-
-This is another 16-bit register, selected by the manufacturer; no official registration is required for the device ID. This ID is usually paired with the vendor ID to make a unique 32-bit identifier for a hardware device. We use the word signature to refer to the vendor and device ID pair. A device driver usually relies on the signature to identify its device; you can find what value to look for in the hardware manual for the target device.
-
-这是另外一个 16 位寄存器，由制造商选择；无需对设备ID进行官方注册。该ID 通常和产商ID配对生成一个唯一的 32位硬件设备标识符。我们使用签名（signature）依次来表示一堆厂商和设备ID。设备驱动程序通常依靠该签名来识别其设备；可以从硬件手册中找到目标设备的签名值。
-
-**class**
-
-Every peripheral device belongs to a class. The class register is a 16-bit value whose top 8 bits identify the “base class” (or group). For example, “ethernet” and “token ring” are two classes belonging to the “network” group, while the “serial” and “parallel” classes belong to the “communication” group. Some drivers can support several similar devices, each of them featuring a different signature but all belonging to the same class; these drivers can rely on the class register to identify their peripherals, as shown later.
-
-每个外部设备属于某个类（class）。class 寄存器是一个 16 位的值，其中，高 8 位标识了 “基类（base class）”，或者组。例如 “ethernet （以太网）”和 “token ring（令牌环）” 是同属 “network （网络）”组的两个类，而 “serial （串行）”和 “parallel（并行）”类同属 “communication（通信）” 组。某些驱动程序可支持多个相似的设备，每个具有不同的签名，但都属于同一个类；这些驱动程序可依靠 class 寄存器来识别他们的外设。如后所述。
-
-**subsystem vendorID**
-**subsystem deviceID**
-
-These fields can be used for further identification of a device. If the chip is a generic interface chip to a local (onboard) bus, it is often used in several completely different roles, and the driver must identify the actual device it is talking with. The subsystem identifiers are used to this end.
-
-这两个字段可用来进一步识别设备。如果设备中的芯片是一个连接到本地板载（onboard）总线上的通用接口芯片，则可能会用于完全不同的多种用途，这时，驱动程序必须识别它所关心的实际设备。子系统标识符就用于此目的。
-
-Using these different identifiers, a PCI driver can tell the kernel what kind of devices it supports.
-
-PCI 驱动程序可以使用这些不同的标识符来告诉内核它支持什么样的设备。
-
-##### 1.1.1.2 初始化 `ixgbe` 设备
-
-在厂商ID 为 0x8086 设备 ID 为 万兆网卡的设备ID 如，我的服务器 82599ES 的设备ID为 0x10fb,就会调用 `ixgbe_init`：
+在厂商ID 为 0x8086 设备 ID 为 万兆网卡的设备ID 如，Intel 82599ES 的设备ID为 0x10fb,就会调用 `ixgbe_init`：
 
 ```c
 struct ixy_device* ixgbe_init(const char* pci_addr, uint16_t rx_queues, uint16_t tx_queues) {
@@ -236,9 +134,25 @@ struct ixy_device* ixgbe_init(const char* pci_addr, uint16_t rx_queues, uint16_t
 
 > 设备ID 的类型 需要参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》 和 《[Intel ®  82599 10 GbE Controller Specification Update](https://www.intel.com/content/dam/www/public/us/en/documents/specification-updates/82599-10-gbe-controller-spec-update.pdf)》，在规格说明中 `0x10fb` 的设备类型为 `82599 (SFI/SFP+)`
 
-###### 设备对象
+##### 1.1.3.1 ixgbe 设备对象结构
 
-`device.h` 定义的 `struct ixy_device` 为 ixy 设备的通用结构：
+`ixgbe.h`  中定义了 `ixgbe` 设备的结构 `struct ixgbe_device` ：
+
+```c
+struct ixgbe_device {
+    struct ixy_device ixy;
+    uint8_t* addr;
+    void* rx_queues;
+    void* tx_queues;
+};
+```
+
+* ixy 为内嵌的 ixy 设备对象，可以利用 offset 反查 ixgbe 设备对象
+* addr 指针指向 ixgbe 设备的资源空间
+* rx_queues 指向接收队列空间
+* tx_queues 指向发送队列空间
+
+`device.h` 定义了 ixy 设备的通用结构`struct ixy_device`, 其中保存了设备的通用信息和接口 ：
 
 ```c
 struct ixy_device {
@@ -254,20 +168,9 @@ struct ixy_device {
 };
 ```
 
-`ixgbe.h`  中定义了 `ixgbe` 设备的结构 `struct ixgbe_device` ，其中包含了 ixy 的设备对象，也就是继承了 ixy 的对象：
+##### 1.1.3.2 映射 `BAR0` 的 `resource` 空间
 
-```c
-struct ixgbe_device {
-    struct ixy_device ixy;
-    uint8_t* addr;
-    void* rx_queues;
-    void* tx_queues;
-};
-```
-
-###### 映射 `BAR0` 的 `resource`
-
-ixgbe设备通过 `pci_map_resource` 将 BAR0 对应的 `resource` 地址空间映射到 ixy 应用的地址空间，并由 ixgbe 设备结构中的 addr 成员变量指向这个地址空间，这个地址空间包括了 82599 所有的统计和配置寄存器的映射。
+ixgbe设备通过 `pci_map_resource` 将 BAR0 对应的 `resource` 地址空间映射到 ixy 应用的地址空间，并由 ixgbe 设备结构中的 addr 成员变量指向这个地址空间，这个地址空间包括了 ixgbe 设备所有的统计和配置寄存器的映射。
 
 ```c
 dev->addr = pci_map_resource(pci_addr);
@@ -291,11 +194,9 @@ uint8_t* pci_map_resource(const char* pci_addr) {
 
 参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》 *table 8-1 the 82599 Address Regions*
 
+###### 解绑原有驱动程序
 
-
-###### 卸载原有驱动程序
-
-在映射 `resource` 之前，需要移除当前设备上已经挂接的驱动程序 `remove_driver`。
+在映射 `resource` 之前，需要解除当前设备上已经绑定的驱动程序 `remove_driver`。
 
 ```c
 void remove_driver(const char* pci_addr) {
@@ -311,40 +212,6 @@ void remove_driver(const char* pci_addr) {
     }
     check_err(close(fd), "close");
 }
-```
-
-* 参考 [Manual driver binding and unbinding](https://lwn.net/Articles/143397/)
-* 参考 [使用 `/sys` 文件系统访问 Linux 内核](https://www.ibm.com/developerworks/cn/linux/l-cn-sysfs/index.html)\
-* 参考 [Documentation/ABI/testing/sysfs-bus-pci.txt](https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-bus-pci)
-
-sysfs-buf-pci 中的描述：
-
-```text
-What:           /sys/bus/pci/drivers/.../bind
-Date:           December 2003
-Contact:        linux-pci@vger.kernel.org
-Description:
-                Writing a device location to this file will cause
-                the driver to attempt to bind to the device found at
-                this location. This is useful for overriding default
-                bindings.  The format for the location is: DDDD:BB:DD.F.
-                That is Domain:Bus:Device.Function and is the same as
-                found in /sys/bus/pci/devices/.  For example:
-                # echo 0000:00:19.0 > /sys/bus/pci/drivers/foo/bind
-                (Note: kernels before 2.6.28 may require echo -n).
-
-What:           /sys/bus/pci/drivers/.../unbind
-Date:           December 2003
-Contact:        linux-pci@vger.kernel.org
-Description:
-                Writing a device location to this file will cause the
-                driver to attempt to unbind from the device found at
-                this location.	This may be useful when overriding default
-                bindings.  The format for the location is: DDDD:BB:DD.F.
-                That is Domain:Bus:Device.Function and is the same as
-                found in /sys/bus/pci/devices/. For example:
-                # echo 0000:00:19.0 > /sys/bus/pci/drivers/foo/unbind
-                (Note: kernels before 2.6.28 may require echo -n).
 ```
 
 ###### 启用 DMA 功能
@@ -396,7 +263,7 @@ void enable_dma(const char* pci_addr) {
 >
 >Default value of this bit is 0b.
 
-###### **申请接收和发送队列**
+##### 1.1.3.3 申请接收和发送队列**
 
 初始化完毕相应接口后，ixgbe_init 需要申请 接收和发送 队列：
 
@@ -405,7 +272,7 @@ void enable_dma(const char* pci_addr) {
     dev->tx_queues = calloc(tx_queues, sizeof(struct ixgbe_tx_queue) + sizeof(void*) * MAX_TX_QUEUE_ENTRIES);
 ```
 
-###### **重置并初始化网卡**
+##### 1.1.3.4 重置并初始化网卡
 
 最后 `ixgbe_init` 调用 `reset_and_init` 重置并重新初始化网卡：
 
@@ -462,27 +329,50 @@ static void reset_and_init(struct ixgbe_device* dev) {
 }
 ```
 
-参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》
+#### 1.1.4 初始化接收队列
 
->*4.6.3 Initialization Sequence*
->
->The following sequence of commands is typically issued to the device by the software device driver in order to initialize the 82599 for normal operation. The major initialization steps are:
->
->通常由软件设备驱动程序向设备发出以下命令序列，以便初始化82599以进行正常操作。 主要的初始化步骤是：
->
->1. Disable interrupts. 禁用中断
->2. Issue global reset and perform general configuration 发出全局重置并执行常规配置 (see Section 4.6.3.2).
->3. Wait for EEPROM auto read completion. 等待EEPROM自动读取完成。
->4. Wait for DMA initialization done 等待DNA初始化完成 (RDRXCTL.DMAIDONE).
->5. Setup the PHY and the link 设置 PHY 和 链路层 (see Section 4.6.4).
->6. Initialize all statistical counters 初始化所有统计计数器 (see Section 4.6.5).
->7. Initialize receive 初始化接收 (see Section 4.6.7).
->8. Initialize transmit 初始化发送 (see Section 4.6.8).
->9. Enable interrupts 初始化中断 (see Section 4.6.3.1).
+这里把分散的代码重新组合，用来说明接收队列初始化的过程：
 
-ixy 代码在禁用中断后并没有重新启用中断。
+```c
+    dev->rx_queues = calloc(rx_queues, sizeof(struct ixgbe_rx_queue) + sizeof(void*) * MAX_RX_QUEUE_ENTRIES);
 
-###### **初始化接收**
+    // section 4.6.7 - init rx
+    init_rx(dev);
+
+    // enables queues after initializing everything
+    for (uint16_t i = 0; i < dev->ixy.num_rx_queues; i++) {
+        start_rx_queue(dev, i);
+    }
+```
+
+1. 申请设备接收队列的对象
+2. 初始化设备接收队列
+3. 启动设备接收队列
+
+##### 1.1.4.1 申请设备接收队列的对象
+
+ixgbe 设备接收队列的结构
+
+```c
+// allocated for each rx queue, keeps state for the receive function
+struct ixgbe_rx_queue {
+    volatile union ixgbe_adv_rx_desc* descriptors;
+    struct mempool* mempool;
+    uint16_t num_entries;
+    // position we are reading from
+    uint16_t rx_index;
+    // virtual addresses to map descriptors back to their mbuf for freeing
+    void* virtual_addresses[];
+};
+```
+
+最后一个成员 virtual_addresses 为Flexible array
+
+所以单个队列的结构如图：
+
+![image3](image/ixy3img03.PNG)
+
+##### 1.1.4.2 初始化设备接收队列
 
 ```c
 // see section 4.6.7
@@ -545,39 +435,36 @@ static void init_rx(struct ixgbe_device* dev) {
 }
 ```
 
-参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》 *Table 1-9 Rx Data Flow*
-
-|Step | Description|
-|-----|------------|
-|1    | The host creates a descriptor ring and configures one of the 82599’s receive queues with the address location, length, head, and tail pointers of the ring (one of 128 available Rx queues) <br> 主机创建一个描述符环，并使用环的地址位置，长度，头和尾指针（128 个可用的 Rx 队列之一）配置 82599 的接收队列之一
-|2    | The host initializes descriptor(s) that point to empty data buffer(s). The host places these descriptor(s) in the correct location at the appropriate Rx ring. <br> 主机初始化指向空数据缓冲区的描述符。 主机将这些描述符放在适当的Rx环的正确位置。
-|3    | The host updates the appropriate Queue Tail Pointer (RDT). <br> 主机更新相应的队列尾指针（RDT）。
-|6    | A packet enters the Rx MAC. <br> 数据包进入Rx MAC。
-|7    | The MAC forwards the packet to the Rx filter. <br> MAC将数据包转发到Rx过滤器。
-|8    | If the packet matches the pre-programmed criteria of the Rx filtering, it is forwarded to an Rx FIFO. <br> 如果数据包与Rx过滤的预编程标准匹配，则将其转发到Rx FIFO。
-|9    | The receive DMA fetches the next descriptor from the appropriate host memory ring to be used for the next received packet. <br> 接收DMA从适当的主机存储器环中取出下一个描述符，以用于下一个接收的数据包。
-|10   | After the entire packet is placed into an Rx FIFO, the receive DMA posts the packet data to the location indicated by the descriptor through the PCIe interface. If the packet size is greater than the buffer size, more descriptors are fetched and their buffers are used for the received packet. <br> 在将整个数据包放入Rx FIFO 之后，接收 DMA 通过 PCIe 接口将数据包数据发布到描述符指示的位置。 如果数据包大小大于缓冲区大小，则会获取更多描述符，并将其缓冲区用于接收的数据包。
-|11   | When the packet is placed into host memory, the receive DMA updates all the descriptor(s) that were used by the packet data. <br> 当数据包放入主机内存时，接收 DMA 会更新数据包数据使用的所有描述符。
-|12   | The receive DMA writes back the descriptor content along with status bits that indicate the packet information including what offloads were done on that packet. <br> 接收 DMA 将描述符内容与状态位一起写回，该状态位指示分组信息，包括对该分组进行的卸载。
-|13   | The 82599 initiates an interrupt to the host to indicate that a new received packet is ready in host memory. <br> 82599向主机发起中断，以指示新接收的数据包已准备好在主机内存中。
-|14   | The host reads the packet data and sends it to the TCP/IP stack for further processing. The host releases the associated buffer(s) and descriptor(s) once they are no longer in use. <br> 主机读取数据包数据并将其发送到 TCP/IP 堆栈以进行进一步处理。 一旦不再使用，主机就会释放相关的缓冲区和描述符。
-
-参考 [stackoverflow descriptor concept in NIC](https://stackoverflow.com/questions/36625892/descriptor-concept-in-nic)
-
-![image2](image/ixy3img02.PNG)
+首先为每个队列申请 `rx descriptors` 的内存
 
 ```c
-// allocated for each rx queue, keeps state for the receive function
-struct ixgbe_rx_queue {
-    volatile union ixgbe_adv_rx_desc* descriptors;
-    struct mempool* mempool;
-    uint16_t num_entries;
-    // position we are reading from
-    uint16_t rx_index;
-    // virtual addresses to map descriptors back to their mbuf for freeing
-    void* virtual_addresses[];
-};
+struct dma_memory mem = memory_allocate_dma(ring_size_bytes, true);
+memset(mem.virt, -1, ring_size_bytes);
 ```
+
+然后将申请的 `rx descriptors` 的内存的物理地址设置到网卡
+
+```c
+set_reg32(dev->addr, IXGBE_RDBAL(i), (uint32_t) (mem.phy & 0xFFFFFFFFull));
+set_reg32(dev->addr, IXGBE_RDBAH(i), (uint32_t) (mem.phy >> 32));
+set_reg32(dev->addr, IXGBE_RDLEN(i), ring_size_bytes);
+
+// set ring to empty at start
+set_reg32(dev->addr, IXGBE_RDH(i), 0);
+set_reg32(dev->addr, IXGBE_RDT(i), 0);
+```
+
+ixgbe 接收队列对象中的 `struct ixgbe_adv_rx_desc` 指针 `descriptors`，指向 `rx descriptors` 的内存的虚拟地址
+
+```c
+// private data for the driver, 0-initialized
+struct ixgbe_rx_queue* queue = ((struct ixgbe_rx_queue*)(dev->rx_queues)) + i;
+queue->num_entries = NUM_RX_QUEUE_ENTRIES;
+queue->rx_index = 0;
+queue->descriptors = (union ixgbe_adv_rx_desc*) mem.virt;
+```
+
+descriptors 结构 `struct ixgbe_adv_rx_desc` ：
 
 ```c
 /* Receive Descriptor - Advanced */
@@ -612,19 +499,7 @@ union ixgbe_adv_rx_desc {
 };
 ```
 
-```c
-// everything here contains virtual addresses, the mapping to physical addresses are in the pkt_buf
-struct mempool {
-    void* base_addr;
-    uint32_t buf_size;
-    uint32_t num_entries;
-    // memory is managed via a simple stack
-    // replacing this with a lock-free queue (or stack) makes this thread-safe
-    uint32_t free_stack_top;
-    // the stack contains the entry id, i.e., base_addr + entry_id * buf_size is the address of the buf
-    uint32_t free_stack[];
-};
-```
+##### 1.1.4.3 启动设备接收队列
 
 ```c
 static void start_rx_queue(struct ixgbe_device* dev, int queue_id) {
@@ -662,37 +537,82 @@ static void start_rx_queue(struct ixgbe_device* dev, int queue_id) {
 }
 ```
 
+首先是申请接收队列中的数据内存池
+
 ```c
-// allocate a memory pool from which DMA'able packet buffers can be allocated
-// this is currently not yet thread-safe, i.e., a pool can only be used by one thread,
-// this means a packet can only be sent/received by a single thread
-// entry_size can be 0 to use the default
-struct mempool* memory_allocate_mempool(uint32_t num_entries, uint32_t entry_size) {
-    entry_size = entry_size ? entry_size : 2048;
-    // require entries that neatly fit into the page size, this makes the memory pool much easier
-    // otherwise our base_addr + index * size formula would be wrong because we can't cross a page-boundary
-    if (HUGE_PAGE_SIZE % entry_size) {
-        error("entry size must be a divisor of the huge page size (%d)", HUGE_PAGE_SIZE);
+uint32_t mempool_size = NUM_RX_QUEUE_ENTRIES + NUM_TX_QUEUE_ENTRIES;
+queue->mempool = memory_allocate_mempool(mempool_size < 4096 ? 4096 : mempool_size, 2048);
+```
+
+然后 为接收队列中的每个对象，在内存池中申请数据包内存，并与对应 descriptors 关联：
+
+```c
+for (int i = 0; i < queue->num_entries; i++) {
+    volatile union ixgbe_adv_rx_desc* rxd = queue->descriptors + i;
+    struct pkt_buf* buf = pkt_buf_alloc(queue->mempool);
+    if (!buf) {
+        error("failed to allocate rx descriptor");
     }
-    struct mempool* mempool = (struct mempool*) malloc(sizeof(struct mempool) + num_entries * sizeof(uint32_t));
-    struct dma_memory mem = memory_allocate_dma(num_entries * entry_size, false);
-    mempool->num_entries = num_entries;
-    mempool->buf_size = entry_size;
-    mempool->base_addr = mem.virt;
-    mempool->free_stack_top = num_entries;
-    for (uint32_t i = 0; i < num_entries; i++) {
-        mempool->free_stack[i] = i;
-        struct pkt_buf* buf = (struct pkt_buf*) (((uint8_t*) mempool->base_addr) + i * entry_size);
-        // physical addresses are not contiguous within a pool, we need to get the mapping
-        // minor optimization opportunity: this only needs to be done once per page
-        buf->buf_addr_phy = virt_to_phys(buf);
-        buf->mempool_idx = i;
-        buf->mempool = mempool;
-        buf->size = 0;
-    }
-    return mempool;
+    rxd->read.pkt_addr = buf->buf_addr_phy + offsetof(struct pkt_buf, data);
+    rxd->read.hdr_addr = 0;
+    // we need to return the virtual address in the rx function which the descriptor doesn't know by default
+    queue->virtual_addresses[i] = buf;
 }
 ```
+
+descriptors 联合体为两个结构，在 DMA 可写的状态下使用结构 `struct read`，其中 pkt_addr 指向 数据包物理内存中的 data 部分：
+
+```c
+rxd->read.pkt_addr = buf->buf_addr_phy + offsetof(struct pkt_buf, data);
+```
+
+##### 1.1.4.4 初始化完成后的结构
+
+![image3](image/ixy3img03.PNG)
+
+参考 [stackoverflow descriptor concept in NIC](https://stackoverflow.com/questions/36625892/descriptor-concept-in-nic)
+
+![image2](image/ixy3img02.PNG)
+
+## 2 `ixy` 的内存管理
+
+### 2.1 虚拟地址转换成物理地址
+
+通过 `/proc/self/pagemap` 文件系统完成：
+
+```c
+// translate a virtual address to a physical one via /proc/self/pagemap
+static uintptr_t virt_to_phys(void* virt) {
+    long pagesize = sysconf(_SC_PAGESIZE);
+    int fd = check_err(open("/proc/self/pagemap", O_RDONLY), "getting pagemap");
+    // pagemap is an array of pointers for each normal-sized page
+    check_err(lseek(fd, (uintptr_t) virt / pagesize * sizeof(uintptr_t), SEEK_SET), "getting pagemap");
+    uintptr_t phy = 0;
+    check_err(read(fd, &phy, sizeof(phy)), "translating address");
+    close(fd);
+    if (!phy) {
+        error("failed to translate virtual address %p to physical address", virt);
+    }
+    // bits 0-54 are the page number
+    return (phy & 0x7fffffffffffffULL) * pagesize + ((uintptr_t) virt) % pagesize;
+}
+```
+
+### 2.2 申请 `DMA` 内存
+
+`ixy DMA` 内存结构：
+
+```c
+struct dma_memory {
+    void* virt;
+    uintptr_t phy;
+};
+```
+
+* virt 指向虚拟内存地址
+* phy 保存对应的物理内存地址，此地址为 网卡 DMA 能够访问的地址
+
+`ixy DMA` 内存申请接口，通过 `hugetlbfs` 实现：
 
 ```c
 // allocate memory suitable for DMA access in huge pages
@@ -729,3 +649,308 @@ struct dma_memory memory_allocate_dma(size_t size, bool require_contiguous) {
     };
 }
 ```
+
+### 2.3 数据包内存池管理
+
+数据包内存池对象结构：
+
+```c
+// everything here contains virtual addresses, the mapping to physical addresses are in the pkt_buf
+struct mempool {
+    void* base_addr;
+    uint32_t buf_size;
+    uint32_t num_entries;
+    // memory is managed via a simple stack
+    // replacing this with a lock-free queue (or stack) makes this thread-safe
+    uint32_t free_stack_top;
+    // the stack contains the entry id, i.e., base_addr + entry_id * buf_size is the address of the buf
+    uint32_t free_stack[];
+};
+```
+
+数据包内存池申请接口：
+
+```c
+// allocate a memory pool from which DMA'able packet buffers can be allocated
+// this is currently not yet thread-safe, i.e., a pool can only be used by one thread,
+// this means a packet can only be sent/received by a single thread
+// entry_size can be 0 to use the default
+struct mempool* memory_allocate_mempool(uint32_t num_entries, uint32_t entry_size) {
+    entry_size = entry_size ? entry_size : 2048;
+    // require entries that neatly fit into the page size, this makes the memory pool much easier
+    // otherwise our base_addr + index * size formula would be wrong because we can't cross a page-boundary
+    if (HUGE_PAGE_SIZE % entry_size) {
+        error("entry size must be a divisor of the huge page size (%d)", HUGE_PAGE_SIZE);
+    }
+    struct mempool* mempool = (struct mempool*) malloc(sizeof(struct mempool) + num_entries * sizeof(uint32_t));
+    struct dma_memory mem = memory_allocate_dma(num_entries * entry_size, false);
+    mempool->num_entries = num_entries;
+    mempool->buf_size = entry_size;
+    mempool->base_addr = mem.virt;
+    mempool->free_stack_top = num_entries;
+    for (uint32_t i = 0; i < num_entries; i++) {
+        mempool->free_stack[i] = i;
+        struct pkt_buf* buf = (struct pkt_buf*) (((uint8_t*) mempool->base_addr) + i * entry_size);
+        // physical addresses are not contiguous within a pool, we need to get the mapping
+        // minor optimization opportunity: this only needs to be done once per page
+        buf->buf_addr_phy = virt_to_phys(buf);
+        buf->mempool_idx = i;
+        buf->mempool = mempool;
+        buf->size = 0;
+    }
+    return mempool;
+}
+```
+
+首先创建 数据包内存池 对象：
+
+```c
+struct mempool* mempool = (struct mempool*) malloc(sizeof(struct mempool) + num_entries * sizeof(uint32_t));
+```
+
+这里需要注意的是 结构的最后一个成员是 *Flexible array*，也是一个堆栈结构，保存着数据包实体的 ID：
+
+```c
+// the stack contains the entry id, i.e., base_addr + entry_id * buf_size is the address of the buf
+uint32_t free_stack[];
+```
+
+然后申请 数据包内存池中的内存，参数 false 的意思是，可以物理内存不连续：
+
+```c
+struct dma_memory mem = memory_allocate_dma(num_entries * entry_size, false);
+mempool->num_entries = num_entries;
+mempool->buf_size = entry_size;
+mempool->base_addr = mem.virt;
+mempool->free_stack_top = num_entries;
+```
+
+然后初始化 数据包内存池 中 的每个数据包内存：
+
+```c
+struct pkt_buf {
+    // physical address to pass a buffer to a nic
+    uintptr_t buf_addr_phy;
+    struct mempool* mempool;
+    uint32_t mempool_idx;
+    uint32_t size;
+    uint8_t head_room[SIZE_PKT_BUF_HEADROOM];
+    uint8_t data[] __attribute__((aligned(64)));
+};
+```
+
+```c
+for (uint32_t i = 0; i < num_entries; i++) {
+    mempool->free_stack[i] = i;
+    struct pkt_buf* buf = (struct pkt_buf*) (((uint8_t*) mempool->base_addr) + i * entry_size);
+    // physical addresses are not contiguous within a pool, we need to get the mapping
+    // minor optimization opportunity: this only needs to be done once per page
+    buf->buf_addr_phy = virt_to_phys(buf);
+    buf->mempool_idx = i;
+    buf->mempool = mempool;
+    buf->size = 0;
+}
+```
+
+其中 buf_addr_phy 保存当前数据包的物理地址
+
+## A PCI 设备
+
+### A.1 sysfs 中的 `PCI` 设备信息
+
+首先先看一下在服务器上实际显示情况：
+
+```sh
+$ ll /sys/bus/pci/devices/0000\:02\:00.0/
+total 0
+-rw-r--r--. 1 root root    4096 Oct  1 11:23 broken_parity_status
+-r--r--r--. 1 root root    4096 Oct  1 11:23 class
+-rw-r--r--. 1 root root    4096 Oct  1 10:55 config
+-r--r--r--. 1 root root    4096 Oct  1 11:23 consistent_dma_mask_bits
+-rw-r--r--. 1 root root    4096 Oct  1 11:23 d3cold_allowed
+-r--r--r--. 1 root root    4096 Oct  1 10:55 device
+-r--r--r--. 1 root root    4096 Oct  1 11:23 dma_mask_bits
+lrwxrwxrwx. 1 root root       0 Oct  1 10:55 driver -> ../../../../bus/pci/drivers/ixgbe
+-rw-r--r--. 1 root root    4096 Oct  1 11:23 driver_override
+-rw-r--r--. 1 root root    4096 Oct  1 11:23 enable
+lrwxrwxrwx. 1 root root       0 Oct  1 11:23 firmware_node -> ../../../LNXSYSTM:00/device:00/PNP0A08:00/device:6c/device:6d
+-r--r--r--. 1 root root    4096 Oct  1 11:23 irq
+-r--r--r--. 1 root root    4096 Oct  1 11:23 local_cpulist
+-r--r--r--. 1 root root    4096 Oct  1 11:23 local_cpus
+-r--r--r--. 1 root root    4096 Oct  1 11:23 modalias
+-rw-r--r--. 1 root root    4096 Oct  1 11:23 msi_bus
+drwxr-xr-x. 2 root root       0 Oct  1 11:23 msi_irqs
+drwxr-xr-x. 3 root root       0 Oct  1 10:55 net
+-r--r--r--. 1 root root    4096 Oct  1 11:23 numa_node
+drwxr-xr-x. 2 root root       0 Oct  1 11:23 power
+--w--w----. 1 root root    4096 Oct  1 11:23 remove
+--w--w----. 1 root root    4096 Oct  1 11:23 rescan
+--w-------. 1 root root    4096 Oct  1 11:23 reset
+-r--r--r--. 1 root root    4096 Oct  1 11:23 resource
+-rw-------. 1 root root 8388608 Oct  1 11:23 resource0
+-rw-------. 1 root root      32 Oct  1 11:23 resource2
+-rw-------. 1 root root   16384 Oct  1 11:23 resource4
+-rw-------. 1 root root 4194304 Oct  1 11:23 rom
+-rw-rw-r--. 1 root root    4096 Oct  1 11:23 sriov_numvfs
+-r--r--r--. 1 root root    4096 Oct  1 11:23 sriov_totalvfs
+lrwxrwxrwx. 1 root root       0 Oct  1 10:55 subsystem -> ../../../../bus/pci
+-r--r--r--. 1 root root    4096 Oct  1 11:23 subsystem_device
+-r--r--r--. 1 root root    4096 Oct  1 11:23 subsystem_vendor
+-rw-r--r--. 1 root root    4096 Oct  1 10:55 uevent
+-r--r--r--. 1 root root    4096 Oct  1 10:55 vendor
+-rw-------. 1 root root   32768 Oct  1 11:23 vpd
+```
+
+然后参考文档 [`Documentation/filesystems/sysfs-pci.txt`](https://www.kernel.org/doc/Documentation/filesystems/sysfs-pci.txt)
+
+| file                 | function
+|----------------------|------------------------------------------------------
+| class                | PCI class (ascii, ro)
+| config               | PCI config space (binary, rw) PCI 设备配置空间
+| device               | PCI device (ascii, ro)
+| enable               | Whether the device is enabled (ascii, rw)
+| irq                  | IRQ number (ascii, ro)
+| local_cpus           | nearby CPU mask (cpumask, ro)
+| remove               | remove device from kernel's list (ascii, wo)
+| resource             | PCI resource host addresses (ascii, ro)
+| resource0..N         | PCI resource N, if present (binary, mmap, rw[1])
+| resource0_wc..N_wc   | PCI WC map resource N, if prefetchable (binary, mmap)
+| revision             | PCI revision (ascii, ro)
+| rom                  | PCI ROM resource, if present (binary, ro)
+| subsystem_device     | PCI subsystem device (ascii, ro)
+| subsystem_vendor     | PCI subsystem vendor (ascii, ro)
+| vendor               | PCI vendor (ascii, ro)
+
+* `ro`      - read only file
+* `rw`      - file is readable and writable
+* `wo`      - write only file
+* `mmap`    - file is mmapable
+* `ascii`   - file contains ascii text
+* `binary`  - file contains binary data
+* `cpumask` - file contains a cpumask type
+
+### A.2 PCI 设备的配置空间
+
+config 文件为PCI设备的**通用配置空间**的映射，二进制结构，可以读写。
+
+**LDD3** 第12章的描述：
+
+The file `config` is a binary file that allows the raw `PCI` config information to be read from the device (just like the `/proc/bus/pci/*/*` provides.) The files `vendor`, `device`, `subsystem_device`, `subsystem_vendor`, and `class` all refer to the specific values of this `PCI` device (all `PCI` devices provide this information.) The file `irq` shows the current `IRQ` assigned to this `PCI` device, and the file `resource` shows the current memory resources allocated by this device.
+
+`config`文件是一个二进制文件，允许从设备读取原始的 `PCI` 配置信息（就像 `/proc/bus/pci/*/*` 提供的那样）。`vendor`，`device`，`subsystem_device`，`subsystem_vendor` 和 `class` 都表示该 `PCI` 设备的特定值（所有PCI设备都提供此信息）。文件 irq 显示分配给此 `PCI` 设备的当前IRQ，`resource` 显示此设备分配的当前内存资源。
+
+![image1](image/ixy3img01.PNG)
+
+*Figure 12-2. The standardized PCI configuration registers*
+
+Three or five PCI registers identify a device: `vendorID` , `deviceID` , and `class` are the three that are always used. Every PCI manufacturer assigns proper values to these read-only registers, and the driver can use them to look for the device. Additionally, the fields `subsystem vendorID` and `subsystem deviceID` are sometimes set by the vendor to further differentiate similar devices.
+
+用三个或五个PCI寄存器可标识一个设备：`vendorID` , `deviceID` , 和 `class`是常用的三个寄存器。每个PCI制造商会将正确的值赋予这三个只读寄存器，驱动程序可利用它们查询设备。此外，有时厂商利用 `subsystem vendorID` 和 `subsystem deviceID` 两个字段来进一步区分相似的设备。
+
+**vendorID**
+
+This 16-bit register identifies a hardware manufacturer. For instance, every Intel device is marked with the same vendor number, 0x8086 . There is a global registry of such numbers, maintained by the PCI Special Interest Group, and manufacturers must apply to have a unique number assigned to them.
+
+这个 16 位的寄存器，用于标识硬件制造商。例如，每个 Intel 设备被标识为同一个厂商编号 `0x8086`，`PCI Special Interest Group` 维护有一个全球的厂商编号注册表，制造商必须申请一个唯一编号并赋予它们的寄存器。
+
+**deviceID**
+
+This is another 16-bit register, selected by the manufacturer; no official registration is required for the device ID. This ID is usually paired with the vendor ID to make a unique 32-bit identifier for a hardware device. We use the word signature to refer to the vendor and device ID pair. A device driver usually relies on the signature to identify its device; you can find what value to look for in the hardware manual for the target device.
+
+这是另外一个 16 位寄存器，由制造商选择；无需对设备ID进行官方注册。该ID 通常和产商ID配对生成一个唯一的 32位硬件设备标识符。我们使用签名（signature）依次来表示一堆厂商和设备ID。设备驱动程序通常依靠该签名来识别其设备；可以从硬件手册中找到目标设备的签名值。
+
+**class**
+
+Every peripheral device belongs to a class. The class register is a 16-bit value whose top 8 bits identify the “base class” (or group). For example, “ethernet” and “token ring” are two classes belonging to the “network” group, while the “serial” and “parallel” classes belong to the “communication” group. Some drivers can support several similar devices, each of them featuring a different signature but all belonging to the same class; these drivers can rely on the class register to identify their peripherals, as shown later.
+
+每个外部设备属于某个类（class）。class 寄存器是一个 16 位的值，其中，高 8 位标识了 “基类（base class）”，或者组。例如 “ethernet （以太网）”和 “token ring（令牌环）” 是同属 “network （网络）”组的两个类，而 “serial （串行）”和 “parallel（并行）”类同属 “communication（通信）” 组。某些驱动程序可支持多个相似的设备，每个具有不同的签名，但都属于同一个类；这些驱动程序可依靠 class 寄存器来识别他们的外设。如后所述。
+
+**subsystem vendorID**
+**subsystem deviceID**
+
+These fields can be used for further identification of a device. If the chip is a generic interface chip to a local (onboard) bus, it is often used in several completely different roles, and the driver must identify the actual device it is talking with. The subsystem identifiers are used to this end.
+
+这两个字段可用来进一步识别设备。如果设备中的芯片是一个连接到本地板载（onboard）总线上的通用接口芯片，则可能会用于完全不同的多种用途，这时，驱动程序必须识别它所关心的实际设备。子系统标识符就用于此目的。
+
+Using these different identifiers, a PCI driver can tell the kernel what kind of devices it supports.
+
+PCI 驱动程序可以使用这些不同的标识符来告诉内核它支持什么样的设备。
+
+### A.3 PCI 设备驱动的绑定与解绑
+
+* 参考 [Manual driver binding and unbinding](https://lwn.net/Articles/143397/)
+* 参考 [使用 `/sys` 文件系统访问 Linux 内核](https://www.ibm.com/developerworks/cn/linux/l-cn-sysfs/index.html)\
+* 参考 [Documentation/ABI/testing/sysfs-bus-pci.txt](https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-bus-pci)
+
+sysfs-buf-pci 中的描述：
+
+```text
+What:           /sys/bus/pci/drivers/.../bind
+Date:           December 2003
+Contact:        linux-pci@vger.kernel.org
+Description:
+                Writing a device location to this file will cause
+                the driver to attempt to bind to the device found at
+                this location. This is useful for overriding default
+                bindings.  The format for the location is: DDDD:BB:DD.F.
+                That is Domain:Bus:Device.Function and is the same as
+                found in /sys/bus/pci/devices/.  For example:
+                # echo 0000:00:19.0 > /sys/bus/pci/drivers/foo/bind
+                (Note: kernels before 2.6.28 may require echo -n).
+
+What:           /sys/bus/pci/drivers/.../unbind
+Date:           December 2003
+Contact:        linux-pci@vger.kernel.org
+Description:
+                Writing a device location to this file will cause the
+                driver to attempt to unbind from the device found at
+                this location.	This may be useful when overriding default
+                bindings.  The format for the location is: DDDD:BB:DD.F.
+                That is Domain:Bus:Device.Function and is the same as
+                found in /sys/bus/pci/devices/. For example:
+                # echo 0000:00:19.0 > /sys/bus/pci/drivers/foo/unbind
+                (Note: kernels before 2.6.28 may require echo -n).
+```
+
+## B NIC 设备
+
+### B.1 82599 设备的初始化序列
+
+参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》
+
+>*4.6.3 Initialization Sequence*
+>
+>The following sequence of commands is typically issued to the device by the software device driver in order to initialize the 82599 for normal operation. The major initialization steps are:
+>
+>通常由软件设备驱动程序向设备发出以下命令序列，以便初始化82599以进行正常操作。 主要的初始化步骤是：
+>
+>1. Disable interrupts. 禁用中断
+>2. Issue global reset and perform general configuration 发出全局重置并执行常规配置 (see Section 4.6.3.2).
+>3. Wait for EEPROM auto read completion. 等待EEPROM自动读取完成。
+>4. Wait for DMA initialization done 等待DNA初始化完成 (RDRXCTL.DMAIDONE).
+>5. Setup the PHY and the link 设置 PHY 和 链路层 (see Section 4.6.4).
+>6. Initialize all statistical counters 初始化所有统计计数器 (see Section 4.6.5).
+>7. Initialize receive 初始化接收 (see Section 4.6.7).
+>8. Initialize transmit 初始化发送 (see Section 4.6.8).
+>9. Enable interrupts 初始化中断 (see Section 4.6.3.1).
+
+ixy 代码在禁用中断后并没有重新启用中断。
+
+### B.2 82599 接收数据流程
+
+参考 《[Intel ® 82599 10 GbE Controller Datasheet](https://www.intel.com/content/dam/www/public/us/en/documents/datasheets/82599-10-gbe-controller-datasheet.pdf)》 *Table 1-9 Rx Data Flow*
+
+|Step | Description|
+|-----|------------|
+|1    | The host creates a descriptor ring and configures one of the 82599’s receive queues with the address location, length, head, and tail pointers of the ring (one of 128 available Rx queues) <br> 主机创建一个描述符环，并使用环的地址位置，长度，头和尾指针（128 个可用的 Rx 队列之一）配置 82599 的接收队列之一
+|2    | The host initializes descriptor(s) that point to empty data buffer(s). The host places these descriptor(s) in the correct location at the appropriate Rx ring. <br> 主机初始化指向空数据缓冲区的描述符。 主机将这些描述符放在适当的Rx环的正确位置。
+|3    | The host updates the appropriate Queue Tail Pointer (RDT). <br> 主机更新相应的队列尾指针（RDT）。
+|6    | A packet enters the Rx MAC. <br> 数据包进入Rx MAC。
+|7    | The MAC forwards the packet to the Rx filter. <br> MAC将数据包转发到Rx过滤器。
+|8    | If the packet matches the pre-programmed criteria of the Rx filtering, it is forwarded to an Rx FIFO. <br> 如果数据包与Rx过滤的预编程标准匹配，则将其转发到Rx FIFO。
+|9    | The receive DMA fetches the next descriptor from the appropriate host memory ring to be used for the next received packet. <br> 接收DMA从适当的主机存储器环中取出下一个描述符，以用于下一个接收的数据包。
+|10   | After the entire packet is placed into an Rx FIFO, the receive DMA posts the packet data to the location indicated by the descriptor through the PCIe interface. If the packet size is greater than the buffer size, more descriptors are fetched and their buffers are used for the received packet. <br> 在将整个数据包放入Rx FIFO 之后，接收 DMA 通过 PCIe 接口将数据包数据发布到描述符指示的位置。 如果数据包大小大于缓冲区大小，则会获取更多描述符，并将其缓冲区用于接收的数据包。
+|11   | When the packet is placed into host memory, the receive DMA updates all the descriptor(s) that were used by the packet data. <br> 当数据包放入主机内存时，接收 DMA 会更新数据包数据使用的所有描述符。
+|12   | The receive DMA writes back the descriptor content along with status bits that indicate the packet information including what offloads were done on that packet. <br> 接收 DMA 将描述符内容与状态位一起写回，该状态位指示分组信息，包括对该分组进行的卸载。
+|13   | The 82599 initiates an interrupt to the host to indicate that a new received packet is ready in host memory. <br> 82599向主机发起中断，以指示新接收的数据包已准备好在主机内存中。
+|14   | The host reads the packet data and sends it to the TCP/IP stack for further processing. The host releases the associated buffer(s) and descriptor(s) once they are no longer in use. <br> 主机读取数据包数据并将其发送到 TCP/IP 堆栈以进行进一步处理。 一旦不再使用，主机就会释放相关的缓冲区和描述符。
