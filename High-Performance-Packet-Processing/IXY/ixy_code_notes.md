@@ -925,7 +925,7 @@ uint32_t ixgbe_rx_batch(struct ixy_device* ixy, uint16_t queue_id, struct pkt_bu
     2. 如果索引小于 最大读取个数那么执行第1步
 5. 将 `RDH[n]` 更新为当前索引，返回
 
-#### 2.1.1.2 判断当前 `rx descriptor` 是否可读
+#### 2.1.2 判断当前 `rx descriptor` 是否可读
 
 ```c
 // rx descriptors are explained in 7.1.6 Table 7-18 
@@ -943,6 +943,56 @@ if (status & IXGBE_RXDADV_STAT_DD) {
 ```
 
 必须满足 `RDESC.STATUS.DD == 1 && RDESC.STATUS_EOP == 1` 时才算是一个完整的数据包被写入到了缓冲，即，软件可以读取此数据包了。
+
+#### 2.1.3 读取当前 `rx descriptor` 指向的数据
+
+```c
+// got a packet, read and copy the whole descriptor
+union ixgbe_adv_rx_desc desc = *desc_ptr;
+struct pkt_buf* buf = (struct pkt_buf*) queue->virtual_addresses[rx_index];
+buf->size = desc.wb.upper.length;
+// this would be the place to implement RX offloading by translating the device-specific flags
+// to an independent representation in the buf (similiar to how DPDK works)
+```
+
+#### 2.1.4 在缓冲池中获取新的数据包和当前 `rx descriptor` 关联
+
+```c
+// need a new mbuf for the descriptor
+struct pkt_buf* new_buf = pkt_buf_alloc(queue->mempool);
+if (!new_buf) {
+    // we could handle empty mempools more gracefully here, but it would be quite messy...
+    // make your mempools large enough
+    error("failed to allocate new mbuf for rx, you are either leaking memory or your mempool is too small");
+}
+// reset the descriptor
+desc_ptr->read.pkt_addr = new_buf->buf_addr_phy + offsetof(struct pkt_buf, data);
+desc_ptr->read.hdr_addr = 0; // this resets the flags
+queue->virtual_addresses[rx_index] = new_buf;
+```
+
+#### 2.1.5 更新索引
+
+注意处理回绕情况
+
+```c
+// advance index with wrap-around, this line is the reason why we require a power of two for the queue size
+#define wrap_ring(index, ring_size) (uint16_t) ((index + 1) & (ring_size - 1))
+
+rx_index = wrap_ring(rx_index, queue->num_entries);
+```
+
+#### 2.1.6 将 `RDH[n]` 更新为当前索引
+
+```c
+if (rx_index != last_rx_index) {
+    // tell hardware that we are done
+    // this is intentionally off by one, otherwise we'd set RDT=RDH if we are receiving faster than packets are coming in
+    // RDT=RDH means queue is full
+    set_reg32(dev->addr, IXGBE_RDT(queue_id), last_rx_index);
+    queue->rx_index = rx_index;
+}
+```
 
 ## 3 `ixy` 的设备管理
 
