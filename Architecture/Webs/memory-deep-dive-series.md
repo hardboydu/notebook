@@ -184,6 +184,7 @@ If you want to measure the memory bandwidth on your system, Intel released the t
 Low Voltage RAM is gaining more popularity recently. DDR3 RDIMMs require 1.5 volts to operate, low voltage RDIMMS require 1.35 volts. While this doesn’t sound much, dealing with hundreds of servers each equipped with 20 or more DIMM modules this can become a tremendous power saver. Unfortunately using less power results in a lower memory clock cycle of the memory bus. This leads to reduced memory bandwidth. Table xyx shows the memory bandwidth of low voltage DDR3 DIMMs compared to 1.5V DIMM rated voltage.
 
 *Table 2: Rated voltage and impact on memory bandwidth*
+
 |DIMM Type|Ranking|Speed   |1 DPC 1.35V| 1 DPC 1.5V| 2 DPC 1.35V| 2 DPC 1.5V| 3 DPC 1.35V| 3 DPC 1.5V
 |---------|-------|--------|-----------|-----------|------------|-----------|------------|--------------
 |RDIMM    |SR/DR  |1600 MHz|N/A        | 1600      | N/A        | 1600      | N/A        | 1066
@@ -370,7 +371,7 @@ An observation made by Intel co-founder Gordon Moore in 1965. He noticed that th
 
 The interesting thing is that Moore’s law is still applicable to this day. The transistor count has been increasing every year, however the speed increase was barely doubled in the last decade. From 2000 to 2009, the CPU speed went from 1.3 GHz to 2.8 GHz. Transistor-count on the other hand increased from 37.5 million in 2000 to 904 million in 2009. This means that translator count does not automatically translate in raw CPU speed increase. For that we have to get back to 2004 where the heat build-up in the chips cause Intel to abandon the consistent speed improvement and move towards a design with multiple processor (cores) on the same CPU chip. The industry followed soon after.
 
-![Part6-CPU-Speed-improveme](memory-deep-dive-series/Part6-CPU-Speed-improveme.png)
+![Part6-CPU-Speed-improvemes](memory-deep-dive-series/Part6-CPU-Speed-improvemes.png)
 
 This fundamental shift in hardware design had a profound impact on software performance. Previously, faster CPU speeds translated directly into faster application performance. When switching to multi-core design, only software that could take advantage of multiple processors would get this benefit.
 
