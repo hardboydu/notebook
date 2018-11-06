@@ -371,7 +371,7 @@ An observation made by Intel co-founder Gordon Moore in 1965. He noticed that th
 
 The interesting thing is that Moore’s law is still applicable to this day. The transistor count has been increasing every year, however the speed increase was barely doubled in the last decade. From 2000 to 2009, the CPU speed went from 1.3 GHz to 2.8 GHz. Transistor-count on the other hand increased from 37.5 million in 2000 to 904 million in 2009. This means that translator count does not automatically translate in raw CPU speed increase. For that we have to get back to 2004 where the heat build-up in the chips cause Intel to abandon the consistent speed improvement and move towards a design with multiple processor (cores) on the same CPU chip. The industry followed soon after.
 
-![Part6-CPU-Speed-improvemes](memory-deep-dive-series/Part6-CPU-Speed-improvemes.png)
+![Part6-CPU-Speed-improvements](memory-deep-dive-series/Part6-CPU-Speed-improvements.png)
 
 This fundamental shift in hardware design had a profound impact on software performance. Previously, faster CPU speeds translated directly into faster application performance. When switching to multi-core design, only software that could take advantage of multiple processors would get this benefit.
 
