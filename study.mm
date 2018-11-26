@@ -1,7 +1,7 @@
 <map version="freeplane 1.6.0">
 <!--To view this file, download free mind mapping software Freeplane from http://freeplane.sourceforge.net -->
 <node TEXT="study" LOCALIZED_STYLE_REF="default" FOLDED="false" ID="ID_1896635613" CREATED="1541569931677" MODIFIED="1541668981757"><hook NAME="MapStyle">
-    <properties show_icon_for_attributes="true" fit_to_viewport="false" show_note_icons="true" edgeColorConfiguration="#808080ff,#ff0000ff,#0000ffff,#00ff00ff,#ff00ffff,#00ffffff,#7c0000ff,#00007cff,#007c00ff,#7c007cff,#007c7cff,#7c7c00ff"/>
+    <properties fit_to_viewport="false" show_icon_for_attributes="true" show_note_icons="true" edgeColorConfiguration="#808080ff,#ff0000ff,#0000ffff,#00ff00ff,#ff00ffff,#00ffffff,#7c0000ff,#00007cff,#007c00ff,#7c007cff,#007c7cff,#7c7c00ff"/>
 
 <map_styles>
 <stylenode LOCALIZED_TEXT="styles.root_node" STYLE="oval" UNIFORM_SHAPE="true" VGAP_QUANTITY="24.0 pt">
@@ -127,6 +127,7 @@
 <node TEXT="Bash" ID="ID_336363791" CREATED="1541670094549" MODIFIED="1541670096332"/>
 <node TEXT="VIM" ID="ID_879269476" CREATED="1541670100134" MODIFIED="1541670105771"/>
 <node TEXT="TMux" ID="ID_1096537456" CREATED="1541670111230" MODIFIED="1541670116238"/>
+<node TEXT="NCurses" ID="ID_1156844713" CREATED="1542942688443" MODIFIED="1542942695072"/>
 </node>
 </node>
 </map>

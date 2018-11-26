@@ -91,23 +91,39 @@ For example, Figure 6.3 shows the organization of a 16 × 8 DRAM chip with d = 1
 
 Each DRAM chip is connected to some circuitry, known as the memory controller, that can transfer $w$ bits at a time to and from each DRAM chip. To read the contents of supercell (i, j), the memory controller sends the row address i to the DRAM, followed by the column address j. The DRAM responds by sending the contents of supercell (i, j) back to the controller. The row address i is called a RAS (row access strobe) request. The column address j is called a CAS (column access strobe) request. Notice that the RAS and CAS requests share the same DRAM address pins.
 
+每个 DRAM 芯片被连接到某个称为内存控制器（memory controller）的电路，这个电路可以一次传输 $w$ 位到每个 DRAM 芯片，或者一次从每个 DRAM 芯片传出$w$位。为了读出超单元$(i, j)$的内容，内存控制器将行地址 i 发送到 DRAM，然后是列地址 j。 DRAM吧超单元$(i, j)$的内容发送回给控制器作为相应。行地址 i 称为 RAS （Row Access Strobe 行访问选通脉冲）请求。列地址 j 称为 CAS （Column Access Strobe，列访问选通脉冲）请求。注意 RAS和CAS请求共享相同的 DRAM 引脚。
+
 For example, to read supercell(2, 1) from the 16 × 8 DRAM in Figure 6.3, the memory controller sends row address 2, as shown in Figure 6.4(a). The DRAM responds by copying the entire contents of row 2 into an internal row buffer. Next, the memory controller sends column address 1, as shown in Figure 6.4(b). The DRAM responds by copying the 8 bits in supercell (2, 1) from the row buffer and sending them to the memory controller.
 
+例如，要从图 6.3 中 $16 \times 8$ 的 DRAM 中读出超单元$(2, 1)$，内存控制器发送行地址 2，如图6.4a 所示。DRAM 的相应是将行 2 的整个内存都复制到一个内部行缓冲区。接下来，内存控制器发送地址 1，如图 6.4b 所示。DRAM的响应是从行缓冲区复制出超单元 $(2, 1)$ 中的 8 位，并把他们发送到内存控制器。
+
 One reason circuit designers organize DRAMs as two-dimensional arrays instead of linear arrays is to reduce the number of address pins on the chip. For example, if our example 128-bit DRAM were organized as a linear array of 16 supercells with addresses 0 to 15, then the chip would need four address pins instead of two. The disadvantage of the two-dimensional array organization is that addresses must be sent in two distinct steps, which increases the access time.
+
+电路设计者将DRAM组织成二维阵列而不是线性数组的一个原因是降低芯片上地址引脚的数量。例如，如果实例的 128位 DRAM 被组织成一个 16 个超单元的线性数组，地址为 0 ~ 15，那么芯片会需要 4 个地址引脚 而不是 2个。二维阵列组织的缺点是必须分步发送地址，这增加了访问时间。
 
 >**Aside** A note on terminology
 >
 >The storage community has never settled on a standard name for a DRAM array  element. Computer architects tend to refer to it as a “cell,” overloading the term with the DRAM storage cell. Circuit designers tend to refer to it as a “word,” overloading the term with a word of main memory. To avoid confusion, we have adopted the unambiguous term “supercell.”
+>
+>存储领域从来没有为DRAM的阵列元素确定一个标准的名字。计算机架构师称之为“单元”，使这个术语具有 DRAM 存储单元之意。电路设计者倾向于称之为“字”，使之具有主存一个字之意。为了避免混淆，我们采用了无歧义的术语“超单元”。
 
 #### Memory Modules
 
 DRAM chips are packaged in memory modules that plug into expansion slots on the main system board(motherboard). Core i7 systems use the 240-pin dual inline memory module (DIMM), which transfers data to and from the memory controller in 64-bit ch unks.
 
+DRAM 芯片封装在内存模块（memory module）中，它插到主板的扩展槽上。 Core i7 系统使用的 240 个引脚的双列直插内存模块（dual inline memory module，DIMM）它以 64 位为块传送数据到内存控制器和从内存控制器传出数据。
+
 Figure 6.5 shows the basic idea of a memory module. The example module stores a total of 64 MB (megabytes) using eight 64-Mbit 8M × 8 DRAM chips, numbered 0 to 7. Each supercell stores 1 byte of main memory, and each 64-bit word at byte address A in main memory is represented by the eight supercells whose corresponding supercell address is (i, j). In the example in Figure 6.5, DRAM 0 stores the first (lower-order) byte, DRAM 1 stores the next byte, and so on.
+
+图 6.5 展示了一个内存模块的基本思想。实例模块用 8 个 64 Mbit 的 $8M \times 8$ 的 DRAM 芯片，总共存储 64MB（兆字节），这 8 个芯片编号为 0 ~ 7。每个超单元存储主存的一个字节，而用相应超单元地址为 $(i, j)$ 的八个超单元来标识主存中字节地址 A 处的64 位字。在图 6.5 的示例中，DRAM 0 存储第一个（低位）字节，DRAM 1 存储下一个字节，以此类推。
 
 To retrieve the word at memory address A, the memory controller converts A to a supercell address (i, j) and sends it to the memory module, which then broadcasts i and j to each DRAM. In response, each DRAM outputs the 8-bit contents of its (i, j) supercell. Circuitry in the module collects these outputs and forms them into a 64-bit word, which it returns to the memory controller.
 
+要取出内存地址 A 处的一个字，内存控制器将 A 转换成一个超单元地址 (i, j)，并将它发送到内存模块，然后内存模块再讲 i 和 j 广播到每个 DRAM。作为相应，每个 DRAM 输出它的(i, j)超单元的 8 位内容。模块中的电路收集这些输出，并把它们合并成一个 64 位字，在返回给内存控制器。
+
 Main memory can be aggregated by connecting multiple memory modules to the memory controller. In this case, when the controller receives an address A, the controller selects the module k that contains A, converts A to its (i, j) form, and sends (i, j) to module k.
+
+通过将多个内存模块连接到内存控制器，能够聚合成主存。在这种情况中，当控制器收到一个地址A时，控制器选择包含 A 的模块 k，将A 转换成它的 (i, j) 的形式，并将 (i, j) 发送到模块 k。
 
 #### Practice Problem 6.1 (solution page 696)
 
@@ -117,35 +133,60 @@ In the following, let r be the number of rows in a DRAM array, c the number of c
 
 There are many kinds of DRAM memories, and new kinds appear on the market with regularity as manufacturers attempt to keep up with rapidly increasing processor speeds. Each is based on the conventional DRAM cell, with optimizations that improve the speed with which the basic DRAM cells can be accessed.
 
+有许多种DRAM存储器，而生产厂商视图跟上迅速增长的处理器速度，市场上就会定期退出新的种类，每种都是基于传统的 DRAM 单元，并进行一些优化，提高访问基本 DRAM 单元的速度。
+
 * *Fast page mode DRAM (FPM DRAM)*. A conventional DRAM copies an entire row of supercells into its internal row buffer, uses one, and then discards the rest. FPM DRAM improves on this by allowing consecutive accesses to the same row to be served directly from the row buffer. For example, to read four supercells from row i of aconventional DRAM, the memory controller must send four RAS/CAS requests, even though the row address i is identical in each case. To read supercells from the same row of an FPM DRAM, the memory controller sends an initial RAS/CAS request, followed by three CAS requests. The initial RAS/CAS request copies row i into the row buffer and returns the supercell addressed by the CAS. The next three supercells are served directly from the row buffer, and thus are returned more quickly than the initial supercell.
+* *缺页模式*。传统的 DRAM 超单元的一整行复制到它的内部行缓冲区中，使用一个，然后丢弃剩余的。FPM DRAM 允许对同一行连续地访问可以直接从行缓冲区得到服务，从而改进了这一点。例如，要从一个传统的 DRAM 的行 i 中读取 4 个超单元，内存控制器必须发送 4 个 RAS/CAS 请求，即使是行地址 i 在每个情况中都是一样的。要从一个 FPM DRAM 的同一行中读取超单元，内存控制器发送第一个 RAS/CAS 请求，后面跟三个 CAS 请求。初始的 RAS/CAS 请求将行 i 复制到行缓冲区，并返回 CAS 寻址的那个超单元。接下来 三个超单元直接从行缓冲区获得，因此返回得比初始单元更快。
 * Extended data out DRAM (EDO DRAM). An enhanced form of FPM DRAM that allows the individual CAS signals to be spaced closer together in time.
+* 扩展数据输出 DRAM（Extended data out DRAM (EDO DRAM)）,FPM DRAM 的一个增强的形式，它允许各个 CAS 信号在时间上靠得更紧密一点。
 * Synchronous DRAM (SDRAM). Conventional, FPM, and EDO DRAMs are asynchronous in the sense that they communicate with the memory controller using a set of explicit control signals. SDRAM replaces many of these control signals with the rising edges of the same external clock signal that drives the memory controller. Without going into detail, the net effect is that an SDRAM can output the contents of its supercells at a faster rate than its asynchronous counterparts.
+* 同步 DRAM （Synchronous DRAM (SDRAM)）。就它们与内存控制器通信使用一组显示控制新来来说，常规的，FPM 和 EDO RAM 都是一部的。SDRAM 用于驱动内存控制器相同的外部时钟信号的上升沿来代替许多这样的控制信号。我们不会深入讨论细节，最终效果就是 SDRAM 能够比那些异步的存储器更快地输出它的超单元的内容。
 * Double Data-Rate Synchronous DRAM(DDR SDRAM). DDR SDRAM is an enhancement of SDRAM that doubles the speed of the DRAM by using both clock edges as control signals. Different types of DDR SDRAMs are characterized by the size of a small prefetch buffer that increases the effective bandwidth: DDR (2 bits), DDR2 (4 bits), and DDR3 (8 bits).
+* 双倍数据速率同步 DRAM （Double Data-Rate Synchronous DRAM(DDR SDRAM)），DDR SDRAM是对SDRAM的一种增强，它通过使用两个时钟沿作为控制信号，从而使DRAM得速度翻倍，不同的DDR SDRAM 是用提高有效带宽的很小的预取缓冲区的大小来划分的：DDR（2位），DDR2（四位）和DDR3（8位）。
 * Video RAM (VRAM). Used in the frame buffers of graphics systems. VRAM is similar in spirit to FPM DRAM. Two major differences are that (1) VRAM output is produced by shifting the entire contents of the internal buffer in sequence and (2) VRAM allows concurrent reads and writes to the memory. Thus, the system can be painting the screen with the pixels in the frame buffer (reads) while concurrently writing new values for the next update (writes).
+* 视频RAM （Video RAM (VRAM)）。它用在图形系统的帧缓冲区中。VRAM 的思想与FPM DRAM 类似。两个主要区别是：1）VRAM的输出是通过依次对内部缓冲区的整个内容进行位移得到的；2）VRAM 允许对内存并行地读和写。因此，系统可以在写下一次更新的新值（写）的同时，用镇缓冲区中的像素刷屏幕（读）。
 
 >**Aside** Historical popularity of DRAM technologies
 >
 >Until 1995, most PCs were built with FPM DRAMs. From 1996 to 1999, EDO DRAMs dominated the market, while FPM DRAMs all but disappeared. SDRAMs first appeared in 1995 in high-end systems, and by 2002 most PCs were built with SDRAMs and DDR SDRAMs. By 2010, most server and desktop systems were built with DDR3 SDRAMs. In fact, the Intel Core i7 supports only DDR3 SDRAM.
+>
+>直到 1995年，大多数PC都是用FPM DRAM构造的。1996 ~ 1999 年， EDO DRAM 在市场上占据了主导，而 FPM DRAM 几乎销声匿迹了。SDRAM 最早出现在 1995 年的高端系统中，到 2002 年，大多数PC都是用 SDRAM 和 DDR SDRAM 制造的。到 2010 年之前，大多数服务器和桌面系统都是用 DDR3 SDRAM 构造的，实际上 Intel Core i7 只支持 DDR3 SDRAM。
 
 #### Nonvolatile Memory
 
 DRAMs and SRAMs are volatile in the sense that they lose their information if the supply voltage is turned off. Nonvolatile memories, on the other hand, retain their information even when they are powered off. There are a variety of nonvolatile memories. For historical reasons, they are referred to collectively as read-only memories (ROMs), even though some types of ROMs can be written to as well as read. ROMs are distinguished by the number of times they can be reprogrammed (written to) and by the mechanism for reprogramming them.
 
+如果断电， DRAM 和 SRAM 会丢失它们的信息，从这个意义上说，它们是易失的（volatile）。另一方面，非易失性存储器（nonvolatile memory）即使实在关电后，仍然保存着它们的信息。现在有很多种非易失性存储器。由于历史原因，虽然ROM中的类型既可以读也可以写，但是它们整体上都被称为只读存储器（Read-Only Memory, ROM）,ROM是以它们能够被重编程（写）的次数和对它们进行重编程所用的机制来区分的。
+
 A programmable ROM (PROM) can be programmed exactly once. PROMs include a sort of fuse with each memory cell that can be blown once by zapping it with a high current.
+
+PROM (programmable ROM，可编程 ROM)只能被编程一次。PROM 的每个存储单元有一种熔丝（fuse），只能用高电流熔断一次。
 
 An erasable programmable ROM (EPROM) has a transparent quartz window that permits light to reach the storage cells. The EPROM cells are cleared to zeros by shining ultraviolet light through the window. Programming an EPROM is done by using a special device to write ones into the EPROM. An EPROM can be erased and reprogrammed on the order of 1,000 times. An electrically erasable PROM (EEPROM) is akin to an EPROM, but it does not require a physically separate programming device, and thus can be reprogrammed in-place on printed circuitcards. An EEPROM can be reprogrammed on the order of $10^5$ times before it wears out.
 
+可擦写可编程ROM（erasable programmable ROM，EPROM）有一个透明的石英窗口，允许光到达存储单元。紫外线光照射过窗口，EPROM单元就被清除为 0。对 EPROM 可编程是通过一种把 1 写入 EPROM 的特殊设备来完成的。EPROM 能够被擦除和重编程的次数数量级可以达到 1000次。电子可擦出 PROM （electrically erasable PROM，EEPROM）类似于EPROM，但是它不需要一个物理上独立的编程设备，因此可以直接在印刷电路卡上编程。EEPROM能够被编程的次数的数量级可以达到 $10 ^ 5$ 次。
+
 Flash memory is a type of nonvolatile memory, based on EEPROMs, that has become an important storage technology. Flash memories are everywhere, providing fast and durable nonvolatile storage for a slew of electronic devices, including digital cameras, cell phones, and music players, as well as laptop, desktop, and server computer systems. In Section 6.1.3, we will look in detail at a new form of flash-based disk drive, known as a solid state disk (SSD), that provides a faster, sturdier, and less power-hungry alternative to conventional rotating disks.
 
+闪存（flash memory）是一类非易失性存储器，基于EEPROM，它已经成为了一种重要的存储技术。闪存无处不在，为大量的电子设备提供快速而持久的非易失性存储，包括数码相机、手机、音乐播放器、PDA和笔记本、台式机和服务器计算机系统。在 6.1.3 节中，我们会自己研究一种新型的基于闪存的磁盘驱动器，称为固态硬盘（solid state disk，SSD），它能提供相对于传统旋转磁盘的一种更快速，更强健和更低能耗的选择。
+
 Programs stored in ROM devices are often referred to as firmware. When a computer system is powered up, it runs firmware stored in a ROM. Some systems provide a small set of primitive input and output functions in firmware—for example, a PC's BIOS (basic input/output system) routines. Complicated devices such as graphics cards and disk drive controllers also rely on firmware to translate I/O (input/output) requests from the CPU.
+
+存储在ROM设备中的程序通常被称为固件（fireware）。当一个计算机系统通电以后，它会运行存储在 ROM 中的固件。一些系统在固件中提供了少量基本的输入和输出函数 —— 例如 PC 的 BIOS （基本输入/输出系统）例程。复杂的设备，像图形卡和磁盘驱动控制器，也依赖固件翻译来自CPU 的 I/O（输入/输出）请求。
 
 #### Accessing Main Memory
 
 Data flows back and forth between the processor and the DRAM main memory over shared electrical conduits called buses. Each transfer of data between the CPU and memory is accomplished with a series of steps called a bus transaction. A read transaction transfers data from the main memory to the CPU. A write transaction transfers data from the CPU to the main memory.
 
+数据流通过称为总线（bus）的共享电子电路在处理器和 DRAM 主存之间来来回回。每次 CPU 和 主存之间的数据传送都是通过一系列步骤来完成的，这些步骤称为总线事务（bus transaction）。读事务（read transaction）从主存传送数据到CPU。写事务（write transaction）从CPU传送数据到主存。
+
 A bus is a collection of parallel wires that carry address, data, and control signals. Depending on the particular bus design, data and address signals can share the same set of wires or can use different sets. Also, more than two devices can share the same bus. The control wires carry signals that synchronize the transaction and identify what kind of transaction is currently being performed. For example, is this transaction of interest to the main memory, or to some other I/O device such as a disk controller? Is the transaction a read or a write? Is the information on the bus an address or a data item?
 
+总线是一组并行的导线，能携带地址、数据和控制信号。取决于总线的设计，数据和地址信号可以共享一组导线，也可以使用不同的。同时，两个以上的设备也能共享同一总线。控制线携带的信号会同步事务，并标识出当前正在被执行的事务的类型。例如，当前关注的这个事务是到主存的吗？还是到诸如磁盘控制器这样的其他I/O设备？这个事务是读还是写？总线上的信息是地址还是数据项？
+
 Figure 6.6 shows the configuration of an example computer system. The main components are the CPU chip, a chipset that we will call an I/O bridge (which includes the memory controller), and the DRAM memory modules that make up main memory. These components are connected by a pair of buses: a system bus that connects the CPU to the I/O bridge, and a memory bus that connects the I/O bridge to the main memory. The I/O bridge translates the electrical signals of the system bus into the electrical signals of the memory bus. As we will see, the I/O bridge also connects the system bus and memory bus to an I/O bus that is shared by I/O devices such as disks and graphics cards. For now, though, we will focus on the memory bus.
+
+图 6.6 展示了一个示例计算机系统的配置。主要部件是CPU芯片、我们将成为 I/O 桥接器 （I/O bridge）的芯片组（其中包括内存控制器），以及组成主存的 DRAM 内存模块。这些部件由一堆总线连接起来，其中一条总线是系统总线（system bus），它连接 CPU 和 I/O 桥接器，另一条是内存总线（memory bus），它连接 I/O 桥接器和主存。I/O 桥接器将系统总线的电子信号翻译成内存总线的电子信号。正如我们看到的那样，I/O 桥接器也将系统总线和内存总线连接到I/O 总线，像磁盘和图形卡这样的 I/O 设备共享 I/O 总线。不过现在我们将注意力集中在内存总线上。
 
 Consider what happens when the CPU performs a load operation such as:
 
