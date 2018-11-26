@@ -1,40 +1,50 @@
-# Monitoring and Tuning the Linux Networking Stack: Receiving Data
+# [Monitoring and Tuning the Linux Networking Stack: Receiving Data](https://blog.packagecloud.io/eng/2016/06/22/monitoring-tuning-linux-networking-stack-receiving-data/)
 
 ## TL;DR
 
 This blog post explains how computers running the Linux kernel receive packets, as well as how to monitor and tune each component of the networking stack as packets flow from the network toward userland programs.
 
-UPDATE We’ve released the counterpart to this post: Monitoring and Tuning the Linux Networking Stack: Sending Data.
+此博客文章解释了运行Linux内核的计算机如何接收数据包，以及如何在数据包从网络流向用户空程序时监视和调整网络堆栈的每个组件。
 
-UPDATE Take a look at the Illustrated Guide to Monitoring and Tuning the Linux Networking Stack: Receiving Data, which adds some diagrams for the information presented below.
+UPDATE We’ve released the counterpart to this post: [Monitoring and Tuning the Linux Networking Stack: Sending Data](https://blog.packagecloud.io/eng/2017/02/06/monitoring-tuning-linux-networking-stack-sending-data/).
+
+UPDATE Take a look at [the Illustrated Guide to Monitoring and Tuning the Linux Networking Stack: Receiving Data](https://blog.packagecloud.io/eng/2016/10/11/monitoring-tuning-linux-networking-stack-receiving-data-illustrated/), which adds some diagrams for the information presented below.
 
 It is impossible to tune or monitor the Linux networking stack without reading the source code of the kernel and having a deep understanding of what exactly is happening.
 
+如果不阅读内核的源代码并深入了解究竟发生了什么，就无法调整或监控Linux网络堆栈。
+
 This blog post will hopefully serve as a reference to anyone looking to do this.
+
+这篇博文有望成为任何想要这样做的人的参考。
 
 ## Special thanks
 
-Special thanks to the folks at Private Internet Access who hired us to research this information in conjunction with other network research and who have graciously allowed us to build upon the research and publish this information.
+Special thanks to the folks at [Private Internet Access](https://privateinternetaccess.com/) who hired us to research this information in conjunction with other network research and who have graciously allowed us to build upon the research and publish this information.
 
-The information presented here builds upon the work done for Private Internet Access, which was originally published as a 5 part series starting here.
+特别感谢 [Private Internet Access](https://privateinternetaccess.com/) 的人们，他们雇用我们与其他网络研究一起研究这些信息，并且慷慨地允许我们在研究的基础上发布并发布这些信息。
+
+The information presented here builds upon the work done for [Private Internet Access](https://privateinternetaccess.com/), which was originally published as a 5 part series starting [here](https://www.privateinternetaccess.com/blog/2016/01/linux-networking-stack-from-the-ground-up-part-1/).
+
+此处提供的信息建立在 [Private Internet Access](https://privateinternetaccess.com/) 的基础上，该互联网最初是作为5部分系列从[这里](https://www.privateinternetaccess.com/blog/2016/01/linux-networking-stack-from-the-ground-up-part-1/)开始发布的。
 
 ## General advice on monitoring and tuning the Linux networking stack
 
-UPDATE We’ve released the counterpart to this post: Monitoring and Tuning the Linux Networking Stack: Sending Data.
+UPDATE We’ve released the counterpart to this post: [Monitoring and Tuning the Linux Networking Stack: Sending Data](https://blog.packagecloud.io/eng/2017/02/06/monitoring-tuning-linux-networking-stack-sending-data/).
 
-UPDATE Take a look at the Illustrated Guide to Monitoring and Tuning the Linux Networking Stack: Receiving Data, which adds some diagrams for the information presented below.
+UPDATE Take a look at [the Illustrated Guide to Monitoring and Tuning the Linux Networking Stack: Receiving Data](https://blog.packagecloud.io/eng/2016/10/11/monitoring-tuning-linux-networking-stack-receiving-data-illustrated/), which adds some diagrams for the information presented below.
 
 The networking stack is complex and there is no one size fits all solution. If the performance and health of your networking is critical to you or your business, you will have no choice but to invest a considerable amount of time, effort, and money into understanding how the various parts of the system interact.
 
-网络协议栈很复杂，没有一种尺寸适合所有解决方案。如果您的网络的性能和健康状况对您或您的企业至关重要，那么您将别无选择，只能花费大量的时间，精力和金钱来了解系统的各个部分如何相互作用。
+网络协议栈很复杂，不可能适合所有解决方案。如果您的网络的性能和健康状况对您或您的企业至关重要，那么您将别无选择，只能花费大量的时间，精力和金钱来了解系统的各个部分如何相互作用。
 
 Ideally, you should consider measuring packet drops at each layer of the network stack. That way you can determine and narrow down which component needs to be tuned.
 
 理想情况下，您应该考虑在网络协议栈的每一层测量数据包丢弃。这样，您就可以确定并缩小需要调整的组件范围。
 
-This is where, I think, many operators go off track: the assumption is made that a set of sysctl settings or `/proc` values can simply be reused wholesale. In some cases, perhaps, but it turns out that the entire system is so nuanced and intertwined that if you desire to have meaningful monitoring or tuning, you must strive to understand how the system functions at a deep level. Otherwise, you can simply use the default settings, which should be good enough until further optimization (and the required investment to deduce those settings) is necessary.
+This is where, I think, many operators go off track: the assumption is made that a set of `sysctl` settings or `/proc` values can simply be reused wholesale. In some cases, perhaps, but it turns out that the entire system is so nuanced and intertwined that if you desire to have meaningful monitoring or tuning, you must strive to understand how the system functions at a deep level. Otherwise, you can simply use the default settings, which should be good enough until further optimization (and the required investment to deduce those settings) is necessary.
 
-我认为，这就是许多运营商偏离轨道的原因：假设一组 sysctl 设置或 `/proc` 值可以简单地重复使用。在某些情况下，也许，但事实证明整个系统是如此微妙和交织在一起，如果您希望进行有意义的监控或调整，您必须努力了解系统如何在深层次运行。否则，您可以简单地使用默认设置，这些设置应该足够好，直到需要进一步优化（以及推断这些设置所需的投资）。
+我认为，这就是许多运维人员偏离轨道的原因：假设一组 `sysctl` 设置或 `/proc` 值可以简单地重复使用。在某些情况下，也许可行，但事实证明整个系统是如此微妙和交织在一起，如果您希望进行有意义的监控或调整，您必须努力了解系统如何在深层次运行。否则，您可以简单地使用默认设置，这些设置应该足够好，直到需要进一步优化（以及推断这些设置所需的代价）。
 
 Many of the example settings provided in this blog post are used solely for illustrative purposes and are not a recommendation for or against a certain configuration or default setting. Before adjusting any setting, you should develop a frame of reference around what you need to be monitoring to notice a meaningful change.
 
@@ -48,39 +58,24 @@ Adjusting networking settings while connected to the machine over a network is d
 
 For reference, you may want to have a copy of the device data sheet handy. This post will examine the Intel I350 Ethernet controller, controlled by the `igb` device driver. You can find that data sheet (warning: LARGE PDF) [here for your reference](http://www.intel.com/content/dam/www/public/us/en/documents/datasheets/ethernet-controller-i350-datasheet.pdf).
 
-作为参考，您可能希望获得设备数据表的副本。本文将介绍由`igb`设备驱动程序控制的 Intel I350 以太网控制器。您可以在此处找到该数据表（警告：LARGE PDF）供您[参考](http://www.intel.com/content/dam/www/public/us/en/documents/datasheets/ethernet-controller-i350-datasheet.pdf)。
+作为参考，您可能希望获得设备数据表的副本。本文将介绍由`igb`设备驱动程序控制的 Intel I350 以太网控制器。您可以在此处找到该数据表（警告：PDF文件很大）供您[参考](http://www.intel.com/content/dam/www/public/us/en/documents/datasheets/ethernet-controller-i350-datasheet.pdf)。
 
 The high level path a packet takes from arrival to socket receive buffer is as follows:
 
 数据包从到达到套接字接收缓冲区的高级路径如下：
 
-1. Driver is loaded and initialized.
-2. Packet arrives at the NIC from the network.
-3. Packet is copied (via DMA) to a ring buffer in kernel memory.
-4. Hardware interrupt is generated to let the system know a packet is in memory.
-5. Driver calls into NAPI to start a poll loop if one was not running already.
-6. `ksoftirqd` processes run on each CPU on the system. They are registered at boot time. The  ksoftirqd processes pull packets off the ring buffer by calling the NAPI poll function that the device driver registered during initialization.
-7. Memory regions in the ring buffer that have had network data written to them are unmapped.
-8. Data that was DMA’d into memory is passed up the networking layer as an 'skb' for more processing.
-9. Incoming network data frames are distributed among multiple CPUs if packet steering is enabled or if the NIC has multiple receive queues.
-10. Network data frames are handed to the protocol layers from the queues.
-11. Protocol layers process data.
-12. Data is added to receive buffers attached to sockets by protocol layers.
-
----
-
-1. 驱动程序已加载并初始化。
-2. 数据包从网络到达 NIC。
-3. 数据包被复制（通过DMA）到内核内存中的环形缓冲区。
-4. 生成硬件中断以使系统知道数据包在内存中。
-5. 驱动程序调用NAPI以启动轮询循环（如果尚未运行）。
-6. `ksoftirqd` 进程在系统上的每个CPU上运行。它们在启动时注册。 `ksoftirqd` 进程通过调用设备驱动程序在初始化期间注册的 NAPI 轮询函数将数据包从环形缓冲区中拉出。
-7. 环形缓冲区中网络数据的内存区域设置成未映射。
-8. DMA进入内存的数据作为‘skb’传递到网络层以进行更多处理。
-9. 如果启用了数据包转向或者NIC具有多个接收队列，则传入的网络数据帧分布在多个CPU之间。
-10. 网络数据帧从队列传递到协议层。
-11. 协议层处理数据。
-12. 添加数据以接收协议层连接到套接字的缓冲区。
+1. Driver is loaded and initialized. <br> 驱动程序已加载并初始化。
+2. Packet arrives at the `NIC` from the network. <br> 数据包从网络到达 `NIC`。
+3. Packet is copied (via `DMA`) to a ring buffer in kernel memory. <br> 数据包被复制（通过 `DMA`）到内核内存中的环形缓冲区。
+4. Hardware interrupt is generated to let the system know a packet is in memory. <br> 生成硬件中断以使系统知道数据包在内存中。
+5. Driver calls into NAPI to start a poll loop if one was not running already. <br> 驱动程序调用NAPI以启动轮询循环（如果尚未运行）。
+6. `ksoftirqd` processes run on each CPU on the system. They are registered at boot time. The  ksoftirqd processes pull packets off the ring buffer by calling the NAPI `poll` function that the device driver registered during initialization. <br> `ksoftirqd` 进程在系统上的每个CPU上运行。它们在启动时注册。 `ksoftirqd` 进程通过调用设备驱动程序在初始化期间注册的 `NAPI` `poll` 函数将数据包从环形缓冲区中拉出。
+7. Memory regions in the ring buffer that have had network data written to them are unmapped. <br> 环形缓冲区中网络数据的内存区域设置成未映射。
+8. Data that was DMA’d into memory is passed up the networking layer as an `skb` for more processing. <br> DMA进入内存的数据作为 `skb` 传递到网络层以进行更多处理。
+9. Incoming network data frames are distributed among multiple CPUs if packet steering is enabled or if the NIC has multiple receive queues. <br> 如果启用了数据包转向或者NIC具有多个接收队列，则传入的网络数据帧分布在多个CPU之间。
+10. Network data frames are handed to the protocol layers from the queues. <br> 网络数据帧从队列传递到协议层。
+11. Protocol layers process data. <br> 协议层处理数据。
+12. Data is added to receive buffers attached to sockets by protocol layers. <br> 添加数据以接收协议层连接到套接字的缓冲区。
 
 This entire flow will be examined in detail in the following sections.
 
@@ -92,9 +87,9 @@ The protocol layers examined below are the IP and UDP protocol layers. Much of t
 
 ## Detailed Look
 
-> UPDATE We’ve released the counterpart to this post: Monitoring and Tuning the Linux Networking Stack: Sending Data.
+> UPDATE We’ve released the counterpart to this post: [Monitoring and Tuning the Linux Networking Stack: Sending Data](https://blog.packagecloud.io/eng/2017/02/06/monitoring-tuning-linux-networking-stack-sending-data/).
 
-> UPDATE Take a look at the Illustrated Guide to Monitoring and Tuning the Linux Networking Stack: Receiving Data, which adds some diagrams for the information presented below.
+> UPDATE Take a look at [the Illustrated Guide to Monitoring and Tuning the Linux Networking Stack: Receiving Data](https://blog.packagecloud.io/eng/2016/10/11/monitoring-tuning-linux-networking-stack-receiving-data-illustrated/), which adds some diagrams for the information presented below.
 
 This blog post will be examining the Linux kernel version 3.13.0 with links to code on GitHub and code snippets throughout this post.
 
@@ -116,9 +111,9 @@ A driver registers an initialization function which is called by the kernel when
 
 驱动程序注册一个初始化函数，该函数在加载驱动程序时由内核调用。使用 `module_init` 宏注册此函数。
 
-The `igb` initialization function (`igb_init_module`) and its registration with `module_init` can be found in `drivers/net/ethernet/intel/igb/igb_main.c`.
+The `igb` initialization function (`igb_init_module`) and its registration with `module_init` can be found in [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L676-L697).
 
-可以在 `drivers/net/ethernet/intel/igb/igb_main.c` 中找到 `igb` 初始化函数（`igb_init_module`）及其对 `module_init` 的注册。
+可以在 [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L676-L697) 中找到 `igb` 初始化函数（`igb_init_module`）及其对 `module_init` 的注册。
 
 Both are fairly straightforward:
 
@@ -133,37 +128,40 @@ Both are fairly straightforward:
  **/
 static int __init igb_init_module(void)
 {
-    int ret;
+  int ret;
+  pr_info("%s - version %s\n",
+         igb_driver_string, igb_driver_version);
 
-    pr_info("%s - version %s\n",
-           igb_driver_string, igb_driver_version);
-    pr_info("%s\n", igb_copyright);
+  pr_info("%s\n", igb_copyright);
 
 #ifdef CONFIG_IGB_DCA
-    dca_register_notify(&dca_notifier);
+  dca_register_notify(&dca_notifier);
 #endif
-    ret = pci_register_driver(&igb_driver);
-    return ret;
+  ret = pci_register_driver(&igb_driver);
+  return ret;
 }
+
+
+module_init(igb_init_module);
 ```
 
-The bulk of the work to initialize the device happens with the call to pci_register_driver as we’ll see next.
+The bulk of the work to initialize the device happens with the call to `pci_register_driver` as we’ll see next.
 
 初始化设备的大部分工作都是在调用 `pci_register_driver` 时发生的，我们将在下面看到。
 
 ##### PCI initialization
 
-The Intel I350 network card is a PCI express device.
+The *Intel I350* network card is a [*PCI express*](https://en.wikipedia.org/wiki/PCI_Express) device.
 
-Intel I350 网卡是 PCI Express 设备。
+*Intel I350* 网卡是 [*PCI Express*](https://en.wikipedia.org/wiki/PCI_Express) 设备。
 
-PCI devices identify themselves with a series of registers in the PCI Configuration Space.
+PCI devices identify themselves with a series of registers in the [PCI Configuration Space](https://en.wikipedia.org/wiki/PCI_configuration_space#Standardized_registers).
 
-PCI设备通过PCI配置空间中的一系列寄存器识别自身。
+PCI 设备通过 [PCI配置空间](https://en.wikipedia.org/wiki/PCI_configuration_space#Standardized_registers) 中的一系列寄存器识别自身。
 
 When a device driver is compiled, a macro named `MODULE_DEVICE_TABLE` (from `include/module.h`) is used to export a table of PCI device IDs identifying devices that the device driver can control. The table is also registered as part of a structure, as we’ll see shortly.
 
-编译设备驱动程序时，会使用名为 `MODULE_DEVICE_TABLE`（来自 `include/module.h`）的宏来导出 PCI 设备 ID 表，以识别设备驱动程序可以控制的设备。该表也被注册为结构的一部分，我们很快就会看到。
+编译设备驱动程序时，会使用名为 `MODULE_DEVICE_TABLE`（来自 [`include/module.h`](https://github.com/torvalds/linux/blob/v3.13/include/linux/module.h#L145-L146)）的宏来导出 PCI 设备 ID 表，以识别设备驱动程序可以控制的设备。该表也被注册为结构的一部分，我们很快就会看到。
 
 The kernel uses this table to determine which device driver to load to control the device.
 
@@ -173,51 +171,25 @@ That’s how the OS can figure out which devices are connected to the system and
 
 这就是操作系统如何确定哪些设备连接到系统以及应该使用哪个驱动程序与设备通信。
 
-This table and the PCI device IDs for the igb driver can be found in `drivers/net/ethernet/intel/igb/igb_main.c` and `drivers/net/ethernet/intel/igb/e1000_hw.h`, respectively:
+This table and the PCI device IDs for the igb driver can be found in [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L79-L117) and [`drivers/net/ethernet/intel/igb/e1000_hw.h`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/e1000_hw.h#L41-L75), respectively:
 
-此表和 `igb` 驱动程序的 PCI 设备 ID 可分别在 `drivers/net/ethernet/intel/igb/igb_main.c` 和 `drivers/net/ethernet/intel/igb/e1000_hw.h` 中找到：
+此表和 `igb` 驱动程序的 PCI 设备 ID 可分别在 [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L79-L117) 和 [`drivers/net/ethernet/intel/igb/e1000_hw.h`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/e1000_hw.h#L41-L75) 中找到：
 
 ```c
-static const struct pci_device_id igb_pci_tbl[] = {
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_BACKPLANE_1GBPS) },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_SGMII) },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_BACKPLANE_2_5GBPS) },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I211_COPPER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_COPPER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_FIBER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_SERDES), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_SGMII), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_COPPER_FLASHLESS), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_SERDES_FLASHLESS), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I350_COPPER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I350_FIBER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I350_SERDES), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_I350_SGMII), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82580_COPPER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82580_FIBER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82580_QUAD_FIBER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82580_SERDES), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82580_SGMII), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82580_COPPER_DUAL), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_DH89XXCC_SGMII), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_DH89XXCC_SERDES), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_DH89XXCC_BACKPLANE), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_DH89XXCC_SFP), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82576), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82576_NS), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82576_NS_SERDES), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82576_FIBER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82576_SERDES), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82576_SERDES_QUAD), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82576_QUAD_COPPER_ET2), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82576_QUAD_COPPER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82575EB_COPPER), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82575EB_FIBER_SERDES), board_82575 },
-    { PCI_VDEVICE(INTEL, E1000_DEV_ID_82575GB_QUAD_COPPER), board_82575 },
-    /* required last entry */
-    {0, }
-};
+static DEFINE_PCI_DEVICE_TABLE(igb_pci_tbl) = {
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_BACKPLANE_1GBPS) },
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_SGMII) },
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_BACKPLANE_2_5GBPS) },
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I211_COPPER), board_82575 },
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_COPPER), board_82575 },
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_FIBER), board_82575 },
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_SERDES), board_82575 },
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_SGMII), board_82575 },
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_COPPER_FLASHLESS), board_82575 },
+  { PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_SERDES_FLASHLESS), board_82575 },
 
+  /* ... */
+};
 MODULE_DEVICE_TABLE(pci, igb_pci_tbl);
 ```
 
@@ -229,20 +201,16 @@ This function registers a structure of pointers. Most of the pointers are functi
 
 此函数注册指针结构。大多数指针都是函数指针，但也注册了PCI设备ID表。内核使用驱动程序注册的功能来启动PCI设备。
 
-From `drivers/net/ethernet/intel/igb/igb_main.c`:
+From [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L238-L249) :
 
 ```c
 static struct pci_driver igb_driver = {
-    .name     = igb_driver_name,
-    .id_table = igb_pci_tbl,
-    .probe    = igb_probe,
-    .remove   = igb_remove,
-#ifdef CONFIG_PM
-    .driver.pm = &igb_pm_ops,
-#endif
-    .shutdown = igb_shutdown,
-    .sriov_configure = igb_pci_sriov_configure,
-    .err_handler = &igb_err_handler
+  .name     = igb_driver_name,
+  .id_table = igb_pci_tbl,
+  .probe    = igb_probe,
+  .remove   = igb_remove,
+
+  /* ... */
 };
 ```
 
