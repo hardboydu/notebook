@@ -224,35 +224,24 @@ Some typical operations to perform include:
 
 一些典型的操作包括：
 
-1. Enabling the PCI device.
-2. Requesting memory ranges and IO ports.
-3. Setting the DMA mask.
-4. The ethtool (described more below) functions the driver supports are registered.
-5. Any watchdog tasks needed (for example, e1000e has a watchdog task to check if the hardware is hung).
-6. Other device specific stuff like workarounds or dealing with hardware specific quirks or similar.
-7. The creation, initialization, and registration of a `struct net_device_ops` structure. This structure contains function pointers to the various functions needed for opening the device, sending data to the network, setting the MAC address, and more.
-8. The creation, initialization, and registration of a high level `struct net_device` which represents a network device.
+1. Enabling the PCI device. <br> 启用PCI设备。
+2. Requesting memory ranges and [IO ports](http://wiki.osdev.org/I/O_Ports). <br> 请求内存范围和[I/O端口](http://wiki.osdev.org/I/O_Ports)。
+3. Setting the [DMA](https://en.wikipedia.org/wiki/Direct_memory_access) mask. <br> 设置 [DMA](https://en.wikipedia.org/wiki/Direct_memory_access) 掩码。
+4. The ethtool (described more below) functions the driver supports are registered. <br> 注册驱动程序支持的ethtool（下面将详细介绍）函数。
+5. Any watchdog tasks needed (for example, e1000e has a watchdog task to check if the hardware is hung). <br> 需要任何监视任务（例如，e1000e有一个监视任务来检查硬件是否挂起）。
+6. Other device specific stuff like workarounds or dealing with hardware specific quirks or similar. <br> 其他特定于设备的东西，如变通方法或处理硬件特定的怪癖或类似的东西。
+7. The creation, initialization, and registration of a `struct net_device_ops` structure. This structure contains function pointers to the various functions needed for opening the device, sending data to the network, setting the MAC address, and more. <br> `struct net_device_ops` 结构的创建，初始化和注册。 此结构包含指向打开设备，向网络发送数据，设置MAC地址等所需的各种功能的函数指针。
+8. The creation, initialization, and registration of a high level `struct net_device` which represents a network device. <br> 表示网络设备的高层 `struct net_device` 的创建，初始化和注册。
 
----
+Let’s take a quick look at some of these operations in the `igb` driver in the function [`igb_probe`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L2005-L2429).
 
-1. 启用PCI设备。
-2. 请求内存范围和IO端口。
-3. 设置DMA掩码。
-4. 注册驱动程序支持的ethtool（下面将详细介绍）函数。
-5. 需要任何监视任务（例如，e1000e有一个监视任务来检查硬件是否挂起）。
-6. 其他特定于设备的东西，如变通方法或处理硬件特定的怪癖或类似的东西。
-7. `struct net_device_ops` 结构的创建，初始化和注册。 此结构包含指向打开设备，向网络发送数据，设置MAC地址等所需的各种功能的函数指针。
-8. 表示网络设备的高层 `struct net_device` 的创建，初始化和注册。
-
-Let’s take a quick look at some of these operations in the `igb` driver in the function `igb_probe`.
-
-让我们快速浏览函数`igb_probe`中`igb`驱动程序中的一些操作。
+让我们快速浏览函数 [`igb_probe`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L2005-L2429) 中`igb`驱动程序中的一些操作。
 
 ###### A peek into PCI initialization
 
-The following code from the `igb_probe` function does some basic PCI configuration. From `drivers/net/ethernet/intel/igb/igb_main.c`:
+The following code from the `igb_probe` function does some basic PCI configuration. From [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L2038-L2059) :
 
-`igb_probe` 函数中的以下代码执行一些基本的 PCI 配置。来自 `drivers/net/ethernet/intel/igb/igb_main.c`：
+`igb_probe` 函数中的以下代码执行一些基本的 PCI 配置。来自 [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L2038-L2059) ：
 
 ```c
 err = pci_enable_device_mem(pdev);
@@ -277,21 +266,21 @@ First, the device is initialized with `pci_enable_device_mem`. This will wake up
 
 首先，使用 `pci_enable_device_mem` 初始化设备。如果设备被挂起，则会唤醒设备，启用内存资源等。
 
-Next, the DMA mask will be set. This device can read and write to 64bit memory addresses, so `dma_set_mask_and_coherent` is called with `DMA_BIT_MASK(64)`.
+Next, the [DMA](https://en.wikipedia.org/wiki/Direct_memory_access) mask will be set. This device can read and write to 64bit memory addresses, so `dma_set_mask_and_coherent` is called with `DMA_BIT_MASK(64)`.
 
-接下来，将设置DMA掩码。该器件可以读写64位存储器地址，因此使用 `DMA_BIT_MASK(64)`调用`dma_set_mask_and_coherent`。
+接下来，将设置 [DMA](https://en.wikipedia.org/wiki/Direct_memory_access) 掩码。该器件可以读写64位存储器地址，因此使用 `DMA_BIT_MASK(64)`调用`dma_set_mask_and_coherent`。
 
-Memory regions will be reserved with a call to `pci_request_selected_regions`, PCI Express Advanced Error Reporting is enabled (if the PCI AER driver is loaded), DMA is enabled with a call to `pci_set_master`, and the PCI configuration space is saved with a call to `pci_save_state`.
+Memory regions will be reserved with a call to `pci_request_selected_regions`, [PCI Express Advanced Error Reporting](https://github.com/torvalds/linux/blob/v3.13/Documentation/PCI/pcieaer-howto.txt) is enabled (if the PCI AER driver is loaded), DMA is enabled with a call to `pci_set_master`, and the PCI configuration space is saved with a call to `pci_save_state`.
 
-通过调用`pci_request_selected_regions`保留内存区域，启用 **PCI Express 高级错误报告**（如果加载了PCI AER驱动程序），通过调用 `pci_set_master` 启用 **DMA**，并通过调用 `pci_save_state` 保存PCI配置空间。
+通过调用`pci_request_selected_regions`保留内存区域，启用 [PCI Express 高级错误报告](https://github.com/torvalds/linux/blob/v3.13/Documentation/PCI/pcieaer-howto.txt)（如果加载了PCI AER驱动程序），通过调用 `pci_set_master` 启用 **DMA**，并通过调用 `pci_save_state` 保存PCI配置空间。
 
 Phew.
 
 ##### More Linux PCI driver information
 
-Going into the full explanation of how PCI devices work is beyond the scope of this post, but this excellent talk, this wiki, and this text file from the linux kernel are excellent resources.
+Going into the full explanation of how PCI devices work is beyond the scope of this post, but this [excellent talk](https://bootlin.com/doc/legacy/pci-drivers/pci-drivers.pdf), [this wiki](http://wiki.osdev.org/PCI), and [this text file from the linux kernel](https://github.com/torvalds/linux/blob/v3.13/Documentation/PCI/pci.txt) are excellent resources.
 
-详细解释PCI设备如何工作超出了本文的范围，但是这个优秀的话题，这个wiki以及来自linux内核的这个文本文件都是很好的资源。
+详细解释PCI设备如何工作超出了本文的范围，但是这个优秀的[话题](https://bootlin.com/doc/legacy/pci-drivers/pci-drivers.pdf)，[这个wiki](http://wiki.osdev.org/PCI)以及来自[linux内核的这个文本文件](https://github.com/torvalds/linux/blob/v3.13/Documentation/PCI/pci.txt)都是很好的资源。
 
 #### Network device initialization
 
@@ -299,19 +288,11 @@ The `igb_probe` function does some important network device initialization. In a
 
 `igb_probe` 函数执行一些重要的网络设备初始化。除了 PCI 特定的工作，它还将做更多的一般网络和网络设备工作：
 
-1. The `struct net_device_ops` is registered.
-2. `ethtool` operations are registered.
-3. The default MAC address is obtained from the NIC.
-4. net_device feature flags are set.
-5. And lots more.
-
----
-
-1. `struct net_device_ops` 已注册。
-2. 注册 `ethtool` 操作接口。
-3. 从 NIC 获取默认 MAC 地址。
-4. 设置 `net_device` 功能标志。
-5. 还有更多。
+1. The `struct net_device_ops` is registered. <br> `struct net_device_ops` 已注册。
+2. `ethtool` operations are registered. <br> 注册 `ethtool` 操作接口。
+3. The default MAC address is obtained from the NIC. <br> 从 NIC 获取默认 MAC 地址。
+4. net_device feature flags are set. <br> 设置 `net_device` 功能标志。
+5. And lots more. <br> 还有更多。
 
 Let’s take a look at each of these as they will be interesting later.
 
@@ -323,9 +304,9 @@ The `struct net_device_ops` contains function pointers to lots of important oper
 
 `struct net_device_ops` 包含指向网络子系统控制设备所需的许多重要操作的函数指针。在本文的其余部分我们将多次提到这种结构。
 
-This `net_device_ops` structure is attached to a `struct net_device` in `igb_probe`. From `drivers/net/ethernet/intel/igb/igb_main.c`:
+This `net_device_ops` structure is attached to a `struct net_device` in `igb_probe`. From [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L2090) :
 
-此 `net_device_ops` 结构附加到 `igb_probe` 中的 `struct net_device` 。参考 `drivers/net/ethernet/intel/igb/igb_main.c`：
+此 `net_device_ops` 结构附加到 `igb_probe` 中的 `struct net_device` 。参考 [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L2090) ：
 
 ```c
 static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
@@ -338,38 +319,22 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 }
 ```
 
-And the functions that this `net_device_ops` structure holds pointers to are set in the same file. From `drivers/net/ethernet/intel/igb/igb_main.c` :
+And the functions that this `net_device_ops` structure holds pointers to are set in the same file. From [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L1905-L1913) :
 
-并且此 `net_device_ops` 结构保存指针的函数在同一文件中设置。来自`drivers/net/ethernet/intel/igb/igb_main.c` ：
+并且此 `net_device_ops` 结构保存指针的函数在同一文件中设置。来自 [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L1905-L1913) ：
 
 ```c
 static const struct net_device_ops igb_netdev_ops = {
-    .ndo_size                   = sizeof(struct net_device_ops),
-    .ndo_open                   = igb_open,
-    .ndo_stop                   = igb_close,
-    .ndo_start_xmit             = igb_xmit_frame,
-    .ndo_get_stats64            = igb_get_stats64,
-    .ndo_set_rx_mode            = igb_set_rx_mode,
-    .ndo_set_mac_address        = igb_set_mac,
-    .extended.ndo_change_mtu    = igb_change_mtu,
-    .ndo_do_ioctl               = igb_ioctl,
-    .ndo_tx_timeout             = igb_tx_timeout,
-    .ndo_validate_addr          = eth_validate_addr,
-    .ndo_vlan_rx_add_vid        = igb_vlan_rx_add_vid,
-    .ndo_vlan_rx_kill_vid       = igb_vlan_rx_kill_vid,
-    .ndo_set_vf_mac             = igb_ndo_set_vf_mac,
-    .extended.ndo_set_vf_vlan   = igb_ndo_set_vf_vlan,
-    .ndo_set_vf_rate            = igb_ndo_set_vf_bw,
-    .ndo_set_vf_spoofchk        = igb_ndo_set_vf_spoofchk,
-    .ndo_get_vf_config          = igb_ndo_get_vf_config,
-#ifdef CONFIG_NET_POLL_CONTROLLER
-    .ndo_poll_controller        = igb_netpoll,
-#endif
-    .ndo_fix_features           = igb_fix_features,
-    .ndo_set_features           = igb_set_features,
-    .ndo_fdb_add                = igb_ndo_fdb_add,
-    .ndo_features_check         = igb_features_check,
-};
+  .ndo_open               = igb_open,
+  .ndo_stop               = igb_close,
+  .ndo_start_xmit         = igb_xmit_frame,
+  .ndo_get_stats64        = igb_get_stats64,
+  .ndo_set_rx_mode        = igb_set_rx_mode,
+  .ndo_set_mac_address    = igb_set_mac,
+  .ndo_change_mtu         = igb_change_mtu,
+  .ndo_do_ioctl           = igb_ioctl,
+
+  /* ... */
 ```
 
 As you can see, there are several interesting fields in this struct like `ndo_open`, `ndo_stop`, `ndo_start_xmit`, and `ndo_get_stats64` which hold the addresses of functions implemented by the `igb` driver.
@@ -382,17 +347,17 @@ We’ll be looking at some of these in more detail later.
 
 ##### `ethtool` registration
 
-`ethtool` is a command line program you can use to get and set various driver and hardware options. You can install it on Ubuntu by running `apt-get install ethtool`.
+[`ethtool`](https://www.kernel.org/pub/software/network/ethtool/) is a command line program you can use to get and set various driver and hardware options. You can install it on Ubuntu by running `apt-get install ethtool`.
 
-`ethtool` 是一个命令行程序，可用于获取和设置各种驱动程序和硬件选项。您可以通过运行`apt-get install ethtool` 在Ubuntu上安装它。
+[`ethtool`](https://www.kernel.org/pub/software/network/ethtool/) 是一个命令行程序，可用于获取和设置各种驱动程序和硬件选项。您可以通过运行 `apt-get install ethtool` 在Ubuntu上安装它。
 
 A common use of ethtool is to gather detailed statistics from network devices. Other ethtool settings of interest will be described later.
 
 `ethtool` 的一个常见用途是从网络设备收集详细的统计信息。其他感兴趣的 `ethtool` 设置将在后面描述。
 
-The `ethtool` program talks to device drivers by using the `ioctl` system call. The device drivers register a series of functions that run for the `ethtool` operations and the kernel provides the glue.
+The `ethtool` program talks to device drivers by using the [`ioctl`](http://man7.org/linux/man-pages/man2/ioctl.2.html) system call. The device drivers register a series of functions that run for the `ethtool` operations and the kernel provides the glue.
 
-`ethtool` 程序通过使用 `ioctl` 系统调用与设备驱动程序进行通信。设备驱动程序注册了一系列为`ethtool` 操作运行的函数，内核提供了粘合剂。
+`ethtool` 程序通过使用 `ioctl` 系统调用与设备驱动程序进行通信。设备驱动程序注册了一系列为`ethtool` 操作运行的函数，内核提供了粘合层。
 
 When an `ioctl` call is made from `ethtool`, the kernel finds the `ethtool` structure registered by the appropriate driver and executes the functions registered. The driver’s `ethtool` function implementation can do anything from change a simple software flag in the driver to adjusting how the actual NIC hardware works by writing register values to the device.
 
@@ -413,13 +378,13 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 }
 ```
 
-All of the `igb` driver’s `ethtool` code can be found in the file   `drivers/net/ethernet/intel/igb/igb_ethtool.c` along with the `igb_set_ethtool_ops` function.
+All of the `igb` driver’s `ethtool` code can be found in the file [`drivers/net/ethernet/intel/igb/igb_ethtool.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_ethtool.c) along with the `igb_set_ethtool_ops` function.
 
-所有 `igb` 驱动程序的 `ethtool` 代码都可以在文件 `drivers/net/ethernet/intel/igb/igb_ethtool.c` 中找到，同时还有 `igb_set_ethtool_ops` 函数。
+所有 `igb` 驱动程序的 `ethtool` 代码都可以在文件 [`drivers/net/ethernet/intel/igb/igb_ethtool.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_ethtool.c) 中找到，同时还有 `igb_set_ethtool_ops` 函数。
 
-From `drivers/net/ethernet/intel/igb/igb_ethtool.c`:
+From [`drivers/net/ethernet/intel/igb/igb_ethtool.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_ethtool.c#L3012-L3015) :
 
-参考 `drivers/net/ethernet/intel/igb/igb_ethtool.c`:
+参考 [`drivers/net/ethernet/intel/igb/igb_ethtool.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_ethtool.c#L3012-L3015) :
 
 ```c
 void igb_set_ethtool_ops(struct net_device *netdev)
@@ -432,55 +397,18 @@ Above that, you can find the igb_ethtool_ops structure with the ethtool function
 
 在此之上，您可以找到具有 `igb` 驱动程序支持的 `ethtool` 函数的 `igb_ethtool_ops` 结构设置到适当的字段。
 
-From `drivers/net/ethernet/intel/igb/igb_ethtool.c` :
+From [`drivers/net/ethernet/intel/igb/igb_ethtool.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_ethtool.c#L2970-L2979) :
 
-来自 `drivers/net/ethernet/intel/igb/igb_ethtool.c` :
-
+来自 [`drivers/net/ethernet/intel/igb/igb_ethtool.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_ethtool.c#L2970-L2979) :
 
 ```c
 static const struct ethtool_ops igb_ethtool_ops = {
-    .get_drvinfo        = igb_get_drvinfo,
-    .get_regs_len       = igb_get_regs_len,
-    .get_regs           = igb_get_regs,
-    .get_wol            = igb_get_wol,
-    .set_wol            = igb_set_wol,
-    .get_msglevel       = igb_get_msglevel,
-    .set_msglevel       = igb_set_msglevel,
-    .nway_reset         = igb_nway_reset,
-    .get_link           = igb_get_link,
-    .get_eeprom_len     = igb_get_eeprom_len,
-    .get_eeprom         = igb_get_eeprom,
-    .set_eeprom         = igb_set_eeprom,
-    .get_ringparam      = igb_get_ringparam,
-    .set_ringparam      = igb_set_ringparam,
-    .get_pauseparam     = igb_get_pauseparam,
-    .set_pauseparam     = igb_set_pauseparam,
-    .self_test          = igb_diag_test,
-    .get_strings        = igb_get_strings,
-    .set_phys_id        = igb_set_phys_id,
-    .get_sset_count     = igb_get_sset_count,
-    .get_ethtool_stats  = igb_get_ethtool_stats,
-    .get_coalesce       = igb_get_coalesce,
-    .set_coalesce       = igb_set_coalesce,
-    .get_ts_info        = igb_get_ts_info,
-    .get_rxnfc          = igb_get_rxnfc,
-    .set_rxnfc          = igb_set_rxnfc,
-    .get_eee            = igb_get_eee,
-    .set_eee            = igb_set_eee,
-    .get_module_info    = igb_get_module_info,
-    .get_module_eeprom  = igb_get_module_eeprom,
-    .get_rxfh_indir_size= igb_get_rxfh_indir_size,
-    .get_rxfh           = igb_get_rxfh,
-    .set_rxfh           = igb_set_rxfh,
-    .get_channels       = igb_get_channels,
-    .set_channels       = igb_set_channels,
-    .get_priv_flags     = igb_get_priv_flags,
-    .set_priv_flags     = igb_set_priv_flags,
-    .begin              = igb_ethtool_begin,
-    .complete           = igb_ethtool_complete,
-    .get_link_ksettings = igb_get_link_ksettings,
-    .set_link_ksettings = igb_set_link_ksettings,
-};
+  .get_settings           = igb_get_settings,
+  .set_settings           = igb_set_settings,
+  .get_drvinfo            = igb_get_drvinfo,
+  .get_regs_len           = igb_get_regs_len,
+  .get_regs               = igb_get_regs,
+  /* ... */
 ```
 
 It is up to the individual drivers to determine which `ethtool` functions are relevant and which should be implemented. Not all drivers implement all `ethtool` functions, unfortunately.
@@ -501,13 +429,13 @@ When a data frame is written to RAM via DMA, how does the NIC tell the rest of t
 
 当数据帧通过 DMA 写入 RAM 时，NIC 如何告诉系统的其余部分数据是否已准备好处理？
 
-Traditionally, a NIC would generate an interrupt request (IRQ) indicating data had arrived. There are three common types of IRQs: MSI-X, MSI, and legacy IRQs. These will be touched upon shortly. A device generating an IRQ when data has been written to RAM via DMA is simple enough, but if large numbers of data frames arrive this can lead to a large number of IRQs being generated. The more IRQs that are generated, the less CPU time is available for higher level tasks like user processes.
+Traditionally, a NIC would generate an [interrupt request (IRQ)](https://en.wikipedia.org/wiki/Interrupt_request_(PC_architecture)) indicating data had arrived. There are three common types of IRQs: MSI-X, MSI, and legacy IRQs. These will be touched upon shortly. A device generating an IRQ when data has been written to RAM via DMA is simple enough, but if large numbers of data frames arrive this can lead to a large number of IRQs being generated. The more IRQs that are generated, the less CPU time is available for higher level tasks like user processes.
 
-传统上，NIC 会生成一个中断请求（IRQ），指示数据已到达。 IRQ有三种常见类型：MSI-X，MSI和传统IRQ。这些将很快被触及。当数据通过 DMA 写入 RAM 时产生 IRQ 的设备很简单，但如果大量数据帧到达，则会导致生成大量 IRQ 。生成的 IRQ 越多，用户进程等更高级别任务的 CPU 时间就越少。
+传统上，NIC 会生成一个[中断请求（IRQ）](https://en.wikipedia.org/wiki/Interrupt_request_(PC_architecture))，指示数据已到达。 IRQ有三种常见类型：MSI-X，MSI和传统IRQ。这些将很快被触及。当数据通过 DMA 写入 RAM 时产生 IRQ 的设备很简单，但如果大量数据帧到达，则会导致生成大量 IRQ 。生成的 IRQ 越多，用户进程等更高级别任务的 CPU 时间就越少。
 
-The New Api (NAPI) was created as a mechanism for reducing the number of IRQs generated by network devices on packet arrival. While NAPI reduces the number of IRQs, it cannot eliminate them completely.
+The [New Api (NAPI)](http://www.linuxfoundation.org/collaborate/workgroups/networking/napi) was created as a mechanism for reducing the number of IRQs generated by network devices on packet arrival. While NAPI reduces the number of IRQs, it cannot eliminate them completely.
 
-New Api（NAPI）被创建为一种机制，用于减少网络设备在数据包到达时生成的 IRQ 数量。虽然 NAPI 减少了 IRQ 的数量，但它无法完全消除它们。
+[New Api (NAPI)](http://www.linuxfoundation.org/collaborate/workgroups/networking/napi)被创建为一种机制，用于减少网络设备在数据包到达时生成的 IRQ 数量。虽然 NAPI 减少了 IRQ 的数量，但它无法完全消除它们。
 
 We’ll see why that is, exactly, in later sections.
 
@@ -515,31 +443,21 @@ We’ll see why that is, exactly, in later sections.
 
 ##### NAPI
 
-NAPI differs from the legacy method of harvesting data in several important ways. NAPI allows a device driver to register a `poll` function that the NAPI subsystem will call to harvest data frames.
+[NAPI](http://www.linuxfoundation.org/collaborate/workgroups/networking/napi) differs from the legacy method of harvesting data in several important ways. NAPI allows a device driver to register a `poll` function that the NAPI subsystem will call to harvest data frames.
 
-NAPI 与传统的以几种重要方式收集数据的方法不同。 NAPI 允许设备驱动程序注册 NAPI 子系统将调用以收集数据帧的轮询（`poll`）功能。
+[NAPI](http://www.linuxfoundation.org/collaborate/workgroups/networking/napi) 与传统的以几种重要方式收集数据的方法不同。 NAPI 允许设备驱动程序注册 NAPI 子系统将调用以收集数据帧的轮询（`poll`）功能。
 
 The intended use of NAPI in network device drivers is as follows:
 
 NAPI 在网络设备驱动程序中的预期用途如下：
 
-1. NAPI is enabled by the driver, but is in the off position initially.
-2. A packet arrives and is DMA’d to memory by the NIC.
-3. An IRQ is generated by the NIC which triggers the IRQ handler in the driver.
-4. The driver wakes up the NAPI subsystem using a softirq (more on these later). This will begin harvesting packets by calling the driver’s registered poll function in a separate thread of execution.
-5. The driver should disable further IRQs from the NIC. This is done to allow the NAPI subsystem to process packets without interruption from the device.
-6. Once there is no more work to do, the NAPI subsystem is disabled and IRQs from the device are re-enabled.
-7. The process starts back at step 2.
-
----
-
-1. NAPI由驱动程序启用，但最初处于关闭位置。
-2. 数据包到达并由 NIC 进行内存 DMA 。
-3. 由 NIC 生成 IRQ，触发驱动程序中的 IRQ 处理程序。
-4. 驱动程序使用 `softirq` 唤醒 NAPI 子系统（稍后将详细介绍）。这将通过在单独的执行线程中调用驱动程序的已注册轮询函数来开始收集数据包。
-5. 驱动程序应禁用 NIC 中的其他 IRQ 。这样做是为了允许 NAPI 子系统在不中断设备的情况下处理数据包。
-6. 一旦没有其他工作要做，就会禁用 NAPI 子系统，并重新启用设备的 IRQ。
-7. 该过程从第2步开始。
+1. NAPI is enabled by the driver, but is in the off position initially. <br> NAPI由驱动程序启用，但最初处于关闭位置。
+2. A packet arrives and is DMA’d to memory by the NIC. <br> 数据包到达并由 NIC 进行内存 DMA 。
+3. An IRQ is generated by the NIC which triggers the IRQ handler in the driver. <br> 由 NIC 生成 IRQ，触发驱动程序中的 IRQ 处理程序。
+4. The driver wakes up the NAPI subsystem using a softirq (more on these later). This will begin harvesting packets by calling the driver’s registered poll function in a separate thread of execution. <br> 驱动程序使用 `softirq` 唤醒 NAPI 子系统（稍后将详细介绍）。这将通过在单独的执行线程中调用驱动程序的已注册轮询函数来开始收集数据包。
+5. The driver should disable further IRQs from the NIC. This is done to allow the NAPI subsystem to process packets without interruption from the device. <br> 驱动程序应禁用 NIC 中的其他 IRQ 。这样做是为了允许 NAPI 子系统在不中断设备的情况下处理数据包。
+6. Once there is no more work to do, the NAPI subsystem is disabled and IRQs from the device are re-enabled. <br> 一旦没有其他工作要做，就会禁用 NAPI 子系统，并重新启用设备的 IRQ。
+7. The process starts back at step 2. <br> 该过程从第2步开始。
 
 This method of gathering data frames has reduced overhead compared to the legacy method because many data frames can be consumed at a time without having to deal with processing each of them one IRQ at a time.
 
@@ -565,37 +483,22 @@ The `igb` driver does this via a long call chain:
 4. `igb_alloc_q_vectors` calls `igb_alloc_q_vector` .
 5. `igb_alloc_q_vector` calls `netif_napi_add`.
 
----
-
-1. `igb_probe` 调用 `igb_sw_init` .
-2. `igb_sw_init` 调用 `igb_init_interrupt_scheme` .
-3. `igb_init_interrupt_scheme` 调用 `igb_alloc_q_vectors` .
-4. `igb_alloc_q_vectors` 调用 `igb_alloc_q_vector` .
-5. `igb_alloc_q_vector` 调用 `netif_napi_add`.
-
 This call trace results in a few high level things happening:
 
 此调用跟踪会导致发生一些高级别事情：
 
-1. If MSI-X is supported, it will be enabled with a call to `pci_enable_msix` .
-2. Various settings are computed and initialized; most notably the number of transmit and receive queues that the device and driver will use for sending and receiving packets.
-3. `igb_alloc_q_vector` is called once for every transmit and receive queue that will be created.
-4. Each call to `igb_alloc_q_vector` calls `netif_napi_add` to register a `poll` function for that queue and an instance of `struct napi_struct` that will be passed to `poll` when called to harvest packets.
-
----
-
-1. 如果支持MSI-X，则通过调用`pci_enable_msix`启用它。
-2. 计算和初始化各种设置; 最值得注意的是设备和驱动程序用于发送和接收数据包的发送和接收队列的数量。
-3. 对于将要创建的每个发送和接收队列，调用一次 `igb_alloc_q_vector`。
-4. 对 `igb_alloc_q_vector` 的每次调用都会调用 `netif_napi_add` 来为该队列注册一个`poll` 函数，以及一个 `struct napi_struct` 的实例，当被调用以收集数据包时，它将被传递给`poll`。
+1. If [MSI-X](https://en.wikipedia.org/wiki/Message_Signaled_Interrupts#MSI-X) is supported, it will be enabled with a call to `pci_enable_msix` . <br> 如果支持 [MSI-X](https://en.wikipedia.org/wiki/Message_Signaled_Interrupts#MSI-X)，则通过调用`pci_enable_msix`启用它。
+2. Various settings are computed and initialized; most notably the number of transmit and receive queues that the device and driver will use for sending and receiving packets. <br> 计算和初始化各种设置; 最值得注意的是设备和驱动程序用于发送和接收数据包的发送和接收队列的数量。
+3. `igb_alloc_q_vector` is called once for every transmit and receive queue that will be created. <br> 对于将要创建的每个发送和接收队列，调用一次 `igb_alloc_q_vector`。
+4. Each call to `igb_alloc_q_vector` calls `netif_napi_add` to register a `poll` function for that queue and an instance of `struct napi_struct` that will be passed to `poll` when called to harvest packets. <br> 对 `igb_alloc_q_vector` 的每次调用都会调用 `netif_napi_add` 来为该队列注册一个`poll` 函数，以及一个 `struct napi_struct` 的实例，当被调用以收集数据包时，它将被传递给`poll`。
 
 Let’s take a look at `igb_alloc_q_vector` to see how the `poll` callback and its private data are registered.
 
 让我们看看 `igb_alloc_q_vector` ，看看如何注册 `poll` 回调及其私有数据。
 
-From `drivers/net/ethernet/intel/igb/igb_main.c` :
+From [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L1145-L1271) :
 
-来自 `drivers/net/ethernet/intel/igb/igb_main.c` :
+来自 [`drivers/net/ethernet/intel/igb/igb_main.c`](https://github.com/torvalds/linux/blob/v3.13/drivers/net/ethernet/intel/igb/igb_main.c#L1145-L1271) :
 
 ```c
 static int igb_alloc_q_vector(struct igb_adapter *adapter,
@@ -639,19 +542,11 @@ The `ndo_open` function will typically do things like:
 
 `ndo_open` 函数通常会执行以下操作：
 
-1. Allocate RX and TX queue memory
-2. Enable NAPI
-3. Register an interrupt handler
-4. Enable hardware interrupts
-5. And more.
-
----
-
-1. 分配 RX 和 TX 队列内存
-2. 启用 NAPI
-3. 注册中断处理程序
-4. 启用硬件中断
-5. 还有更多。
+1. Allocate RX and TX queue memory <br> 分配 RX 和 TX 队列内存
+2. Enable NAPI <br> 启用 NAPI
+3. Register an interrupt handler <br> 注册中断处理程序
+4. Enable hardware interrupts <br> 启用硬件中断
+5. And more. <br> 还有更多。
 
 In the case of the `igb` driver, the function attached to the ndo_open field of the `net_device_ops` structure is called `igb_open` .
 
