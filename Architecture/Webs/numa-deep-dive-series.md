@@ -139,6 +139,6 @@ With the introduction of the Nehalem microarchitecture in 2008, Intel moved away
 | Nehalem                      | x55xx      | 10-2008 | 4     | 8        | 6.4              | 3xDDR3-1333      | Tock                 | 45nm                |
 | Westmere                     | x56xx      | 01-2010 | 6     | 12       | 6.4              | 3xDDR3-1333      | Tick                 | 32nm                |
 | Sandy Bridge                 | E5-26xx v1 | 03-2012 | 8     | 20       | 8.0              | 4xDDR3-1600      | Tock                 | 32nm                |
-| Ivy Bridge                   | E5-26xx v2 | 09-2013 | 12    | 30       | 8.0              | 4xDDR3-1866      | Tick                 | 22 nm               |
+| Ivy Bridge                   | E5-26xx v2 | 09-2013 | 12    | 30       | 8.0              | 4xDDR3-1866      | Tick                 | 22nm                |
 | Haswell                      | E5-26xx v3 | 09-2014 | 18    | 45       | 9.6              | 4xDDR3-2133      | Tock                 | 22nm                |
-| Broadwell                    | E5-26xx v4 | 03-2016 | 22    | 55       | 9.6              | 4xDDR3-2400      | Tick                 | 14 nm               |
+| Broadwell                    | E5-26xx v4 | 03-2016 | 22    | 55       | 9.6              | 4xDDR3-2400      | Tick                 | 14nm                |
