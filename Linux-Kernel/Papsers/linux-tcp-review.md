@@ -236,5 +236,3 @@ Implementation of TCP in Linux is a complex and highly optimized to gain as high
 6. [6] V. Jacobson. Congestion avoidance and control. SIGCOMM Comput. Commun. Rev., 18(4):314–329, Aug. 1988.
 7. [7] J. Postel. RFC 793: Transmission control protocol, Sept. 1981.
 8. [8] W. Stevens. TCP Slow Start, Congestion Avoidance, Fast Retransmit, and Fast Recovery Algorithms. RFC 2001 (Proposed Standard), Jan. 1997. Obsoleted by RFC 2581.
-
-
