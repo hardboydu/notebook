@@ -131,3 +131,204 @@ Finally, two per-process structures describe the filesystem and files associated
 The rest of this chapter discusses these objects and the role they play in implementing the VFS layer.
 
 13.5 节将讨论这些对象以及它们在 VFS 层的实现中扮演的角色。
+
+## The Superblock Object
+
+The superblock object is implemented by each filesystem and is used to store information describing that specific filesystem.This object usually corresponds to the filesystem superblock or the filesystem control block, which is stored in a special sector on disk (hence the object’s name). Filesystems that are not disk-based (a virtual memory–based filesystem, such as sysfs, for example) generate the superblock on-the-fly and store it in memory.
+
+各种文件系统都必须实现超级块对象，该对象用于存储特定文件系统信息，通常对应于存放在磁盘特定扇区中的文件系统超级块或文件系统控制块（所以称为超级块对象）。对于并非基于磁盘的文件系统（如基于内存的文件系统，比如`sysfs`），它们会在使用现场创建超级块并将其保存在内存中。
+
+The superblock object is represented by `struct super_block` and defined in `<linux/fs.h>` . Here is what it looks like, with comments describing each entry:
+
+超级块对象由 `struct super_block` 结构体表示，定义在文件 `<linux/fs.h>` 中，下面给出它的结构和各个域的描述：
+
+```c
+struct super_block {
+    struct list_head           s_list;                    /* list of all superblocks 指向所有超级块的链表*/
+    dev_t                      s_dev;                     /* identifier 设备标识符*/
+    unsigned long              s_blocksize;               /* block size in bytes 以字节为单位的块大小*/
+    unsigned char              s_blocksize_bits;          /* block size in bits 以位为单位的块大小*/
+    unsigned char              s_dirt;                    /* dirty flag 修改（脏）标志*/
+    unsigned long long         s_maxbytes;                /* max file size 文件大小上限*/
+    struct file_system_type    s_type;                    /* filesystem type 文件系统类型*/
+    struct super_operations    s_op;                      /* superblock methods 超级块方法 */
+    struct dquot_operations   *dq_op;                     /* quota methods 磁盘限额方法*/
+    struct quotactl_ops       *s_qcop;                    /* quota control methods 限额控制方法*/
+    struct export_operations  *s_export_op;               /* export methods 导出方法*/
+    unsigned long              s_flags;                   /* mount flags 挂载标志*/
+    unsigned long              s_magic;                   /* filesystem’s magic number 文件系统的幻数*/
+    struct dentry             *s_root;                    /* directory mount point 目录挂载点*/
+    struct rw_semaphore        s_umount;                  /* unmount semaphore 卸载信号量 */
+    struct semaphore           s_lock;                    /* superblock semaphore 超级块信号量*/
+    int                        s_count;                   /* superblock ref count 超级块引用计数*/
+    int                        s_need_sync;               /* not-yet-synced flag 尚未同步标志 */
+    atomic_t                   s_active;                  /* active reference count 活动引用计数*/
+    void                      *s_security;                /* security module 安全模块*/
+    struct xattr_handler     **s_xattr;                   /* extended attribute handlers *扩展的属性操作/
+    struct list_head           s_inodes;                  /* list of inodes inodes 链表*/
+    struct list_head           s_dirty;                   /* list of dirty inodes 脏数据链表*/
+    struct list_head           s_io;                      /* list of writebacks 回写链表 */
+    struct list_head           s_more_io;                 /* list of more writeback 更多的回写链表*/
+    struct hlist_head          s_anon;                    /* anonymous dentries 匿名目录项*/
+    struct list_head           s_files;                   /* list of assigned files 被分配的文件列表*/
+    struct list_head           s_dentry_lru;              /* list of unused dentries 未被使用目录项链表*/
+    int                        s_nr_dentry_unused;        /* number of dentries on list 链表中目录项的数目*/
+    struct block_device       *s_bdev;                    /* associated block device 相关的块设备*/
+    struct mtd_info           *s_mtd;                     /* memory disk information 存储磁盘信息*/
+    struct list_head           s_instances;               /* instances of this fs 文件系统的实例*/
+    struct quota_info          s_dquot;                   /* quota-specific options 限制相关选项*/
+    int                        s_frozen;                  /* frozen status 冻结状态标志*/
+    wait_queue_head_t          s_wait_unfrozen;           /* wait queue on freeze 冻结的等待队列*/
+    char                       s_id[32];                  /* text name 文本名称*/
+    void                      *s_fs_info;                 /* filesystem-specific info 文件系统特殊信息*/
+    fmode_t                    s_mode;                    /* mount permissions 挂载权限*/
+    struct semaphore           s_vfs_rename_sem;          /* rename semaphore 重命名信号量*/
+    u32                        s_time_gran;               /* granularity of timestamps 时间戳粒度*/
+    char                      *s_subtype;                 /* subtype name 子类型名称*/
+    char                      *s_options;                 /* saved mount options 已挂载选项*/
+};
+```
+
+The code for creating, managing, and destroying superblock objects lives in `fs/super.c`. A superblock object is created and initialized via the `alloc_super()` function. When mounted, a filesystem invokes this function, reads its superblock off of the disk, and fills in its superblock object.
+
+创建、管理和撤销超级块对象的代码位于文件 `fs/super.c` 中。超级块对象通过 `alloc_super()` 函数创建并初始化。在文件系统安装时，文件系统会调用该函数以便从磁盘读取文件系统超级块，并且将其信息填充到内存中的超级块对象中。
+
+## Superblock Operations
+
+The most important item in the superblock object is `s_op` , which is a pointer to the superblock operations table.The superblock operations table is represented by `struct super_operations` and is defined in `<linux/fs.h>` . It looks like this:
+
+超级块对象中最重要的一个域是 `s_op`，它指向超级块的操作函数表，超级块操作函数表由 `struct super_operations` 结构体表示，定义在文件 `<linux/fs.h>` 中，其形式如下：
+
+```c
+struct super_operations {
+    struct inode *(*alloc_inode)(struct super_block *sb);
+    void (*destroy_inode)(struct inode *);
+    void (*dirty_inode) (struct inode *);
+    int (*write_inode) (struct inode *, int);
+    void (*drop_inode) (struct inode *);
+    void (*delete_inode) (struct inode *);
+    void (*put_super) (struct super_block *);
+    void (*write_super) (struct super_block *);
+    int (*sync_fs)(struct super_block *sb, int wait);
+    int (*freeze_fs) (struct super_block *);
+    int (*unfreeze_fs) (struct super_block *);
+    int (*statfs) (struct dentry *, struct kstatfs *);
+    int (*remount_fs) (struct super_block *, int *, char *);
+    void (*clear_inode) (struct inode *);
+    void (*umount_begin) (struct super_block *);
+    int (*show_options)(struct seq_file *, struct vfsmount *);
+    int (*show_stats)(struct seq_file *, struct vfsmount *);
+    ssize_t (*quota_read)(struct super_block *, int, char *, size_t, loff_t);
+    ssize_t (*quota_write)(struct super_block *, int, const char *, size_t, loff_t);
+    int (*bdev_try_to_free_page)(struct super_block*, struct page*, gfp_t);
+};
+```
+
+Each item in this structure is a pointer to a function that operates on a superblock object.The superblock operations perform low-level operations on the filesystem and its inodes.
+
+该结构体中的每一项都是一个纸箱超级块操作函数的指针，超级块操作函数执行文件系统和索引节点的底层操作。
+
+When a filesystem needs to perform an operation on its superblock, it follows the pointers from its superblock object to the desired method. For example, if a filesystem wanted to write to its superblock, it would invoke :
+
+当文件系统需要对其超级块进行操作时，首先要在超级块对象中寻找需要的操作方法。比如，如果一个文件系统要写自己的超级块，需要调用：
+
+```c
+sb->s_op->write_super(sb);
+```
+
+In this call, `sb` is a pointer to the filesystem’s superblock. Following that pointer into `s_op` yields the superblock operations table and ultimately the desired `write_super()` function, which is then invoked. Note how the `write_super()` call must be passed a superblock, despite the method being associated with one.This is because of the lack of object-oriented support in C. In C++, a call such as the following would suffice: `sb.write_super()` ;
+
+在这个调用中 `sb` 是指向文件系统超级块的指针，沿着该指针进入超级块操作函数表 `s_op`，并从表中取得希望得到的 `write_super()` 函数，该函数执行写入超级块的实际操作。注意，尽管 `write_super()` 方法来自超级块，但是在调用时，还是要把超级块作为参数传递给它，这是因为 C 语言中缺少对面向对象的支持，而在 C++ 中，使用如下的调用就足够了：
+
+```c++
+sb.write_super();
+```
+
+In C, there is no way for the method to easily obtain its parent, so you have to pass it.
+
+由于在 C 语言中无法直接得到操作函数的父对象，所以必须将父对象以参数的形式传递给操作函数。
+
+Let’s take a look at some of the superblock operations that are specified by `super_operations` :
+
+下面给出 `super_operations` 中，超级块操作函数的用法：
+
+* `struct inode * alloc_inode(struct super_block *sb)` <br> Creates and initializes a new inode object under the given superblock. <br> 在给定的超级块下创建和初始化一个新的索引节点对象。
+* `void destroy_inode(struct inode *inode)` <br> Deallocates the given inode. <br> 用于释放给定的索引节点。
+* `void dirty_inode(struct inode *inode)` <br> Invoked by the VFS when an inode is dirtied (modified). Journaling filesystems such as ext3 and ext4 use this function to perform journal updates. <br> VFS 在索引节点脏（被修改）时会调用此函数。日志文件系统（如 ext3 和 ext4）执行该函数进行日志更新。
+* `void write_inode(struct inode *inode, int wait)` <br> Writes the given inode to disk. The `wait` parameter specifies whether the operation should be synchronous. <br> 用于给定的索引节点写入磁盘，`wait` 参数指明写操作是否需要同步。
+* void drop_inode(struct inode *inode) <br> Called by the VFS when the last reference to an inode is dropped. Normal Unix filesystems do not define this function, in which case the VFS simply deletes the inode. <br> 在最后一个指向索引节点的引用被释放后，VFS 会表用该函数。 VFS只需要简单地删除这个索引节点后，普通 Unix 文件系统就不会定义这个函数了。
+* `void delete_inode(struct inode *inode)` <br> Deletes the given inode from the disk. <br> 用户从磁盘上删除给定的索引节点。
+* `void put_super(struct super_block *sb)` <br> Called by the VFS on unmount to release the given superblock object.The caller must hold the `s_lock` lock. <br> 在卸载文件系统时调由 VFS 调用，用来释放超级块。调用者必须持有 `s_lock` 锁。
+* `void write_super(struct super_block *sb)` <br> Updates the on-disk superblock with the specified superblock. The VFS uses this function to synchronize a modified in-memory superblock with the disk. The caller must hold the `s_lock` lock. <br> 用给定的超级块更新磁盘上的超级块。VFS 通过该函数对内存中的超级块和磁盘中的超级块进行同步。调用者必须持有 `s_lock` 锁。
+* `int sync_fs(struct super_block *sb, int wait)` <br> Synchronizes filesystem metadata with the on-disk filesystem. The `wait` parameter specifies whether the operation is synchronous. <br> 使文件系统的数据元与磁盘上的文件系统同步，`wait` 参数指定操作是否同步。
+* `void write_super_lockfs(struct super_block *sb)` <br> Prevents changes to the filesystem, and then updates the on-disk superblock with the specified superblock. It is currently used by LVM (the LogicalVolume Manager). <br> 首先禁止对文件系统做改变，再使用给定的超级块更新磁盘上的超级块。目前 LVM （逻辑卷标管理）会调用该函数。
+* `void unlockfs(struct super_block *sb)` <br> Unlocks the filesystem against changes as done by `write_super_lockfs()` . <br> 对文件系统解除锁定，它是 `write_super_lockfs()` 的逆操作。
+* `int statfs(struct super_block *sb, struct statfs *statfs)` <br> Called by the VFS to obtain filesystem statistics.The statistics related to the given filesystem are placed in `statfs`. <br> VFS 通过调用该函数获取文件系统状态。指定文件系统相关的统计信息将放置在 `statfs` 中。
+* `int remount_fs(struct super_block *sb, int *flags, char *data)` <br> Called by the VFS when the filesystem is remounted with new mount options.The caller must hold the `s_lock` lock. <br> 当指定新的挂载选项重新挂载文件系统时，VFS会调用该函数。调用者必须持有 's_lock' 锁。
+* `void clear_inode(struct inode *inode)` <br> Called by the VFS to release the inode and clear any pages containing related data. <br> VFS 调用该函数释放索引节点。并清空包含相关数据的所有页。
+* `void umount_begin(struct super_block *sb)` <br> Called by the VFS to interrupt a mount operation. It is used by network filesystems, such as NFS. <br> VFS 调用该函数中断挂载操作。该函数被网络文件系统使用，如NFS。
+
+All these functions are invoked by the VFS, in process context.All except `dirty_inode()` may all block if needed.
+
+所有以上函数都是由 VFS 在进程上下文中调用。除了 `dirty_inode()`，其他函数在必要时都可以阻塞。
+
+Some of these functions are optional; a specific filesystem can then set its value in the superblock operations structure to `NULL` . If the associated pointer is `NULL` , the VFS either calls a generic function or does nothing, depending on the operation.
+
+这其中的一部分函数是可选的。在超级块操作函数表中，文件系统可以将不需要的函数指针设置成 `NULL`。如果 VFS 发现操作函数指针是 `NULL`，那它要么就会调用通用函数执行相关操作，要么什么也不做，如何选择取决于具体操作。
+
+## The Inode Object
+
+The inode object represents all the information needed by the kernel to manipulate a file or directory. For Unix-style filesystems, this information is simply read from the on-disk inode. If a filesystem does not have inodes, however, the filesystem must obtain the information from wherever it is stored on the disk. Filesystems without inodes generally store file-specific information as part of the file; unlike Unix-style filesystems, they do not separate file data from its control information. Some modern filesystems do neither and store file metadata as part of an on-disk database.Whatever the case, the inode object is constructed in memory in whatever manner is applicable to the filesystem.
+
+The inode object is represented by `struct inode` and is defined in `<linux/fs.h>` . Here is the structure, with comments describing each entry:
+
+```c
+struct inode {
+    struct hlist_node        i_hash;             /* hash list */
+    struct list_head         i_list;             /* list of inodes */
+    struct list_head         i_sb_list;          /* list of superblocks */
+    struct list_head         i_dentry;           /* list of dentries */
+    unsigned long            i_ino;              /* inode number */
+    atomic_t                 i_count;            /* reference counter */
+    unsigned int             i_nlink;            /* number of hard links */
+    uid_t                    i_uid;              /* user id of owner */
+    gid_t                    i_gid;              /* group id of owner */
+    kdev_t                   i_rdev;             /* real device node */
+    u64                      i_version;          /* versioning number */
+    loff_t                   i_size;             /* file size in bytes */
+    seqcount_t               i_size_seqcount;    /* serializer for i_size */
+    struct timespec          i_atime;            /* last access time */
+    struct timespec          i_mtime;            /* last modify time */
+    struct timespec          i_ctime;            /* last change time */
+    unsigned int             i_blkbits;          /* block size in bits */
+    blkcnt_t                 i_blocks;           /* file size in blocks */
+    unsigned short           i_bytes;            /* bytes consumed */
+    umode_t                  i_mode;             /* access permissions */
+    spinlock_t               i_lock;             /* spinlock */
+    struct rw_semaphore      i_alloc_sem;        /* nests inside of i_sem */
+    struct semaphore         i_sem;              /* inode semaphore */
+    struct inode_operations *i_op;               /* inode ops table */
+    struct file_operations  *i_fop;              /* default inode ops */
+    struct super_block      *i_sb;               /* associated superblock */
+    struct file_lock        *i_flock;            /* file lock list */
+    struct address_space    *i_mapping;          /* associated mapping */
+    struct address_space     i_data;             /* mapping for device */
+    struct dquot            *i_dquot[MAXQUOTAS]; /* disk quotas for inode */
+    struct list_head         i_devices;          /* list of block devices */
+    union {
+        struct pipe_inode_info *i_pipe; /* pipe information */
+        struct block_device    *i_bdev; /* block device driver */
+        struct cdev            *i_cdev; /* character device driver */
+    };
+    unsigned long          i_dnotify_mask;  /* directory notify mask */
+    struct dnotify_struct *i_dnotify;       /* dnotify */
+    struct list_head       inotify_watches; /* inotify watches */
+    struct mutex           inotify_mutex;   /* protects inotify_watches */
+    unsigned long          i_state;         /* state flags */
+    unsigned long          dirtied_when;    /* first dirtying time */
+    unsigned int           i_flags;         /* filesystem flags */
+    atomic_t               i_writecount;    /* count of writers */
+    void                  *i_security;      /* security module */
+    void                  *i_private;       /* fs private pointer */
+};
+```
