@@ -7,8 +7,8 @@ principle: Two’s-complement addition
 For integer values $x$ and $y$ in the range $- 2 ^ { w - 1 } \leq x , y \leq 2 ^ { w - 1 } - 1$
 
 $$
-x + _ { w } ^ { \mathrm { t } } y = \left . \{ \begin{array} { l l }
+x + _ { w } ^ { \mathrm { t } } y = \left.\{ \begin{array} { l l }
     { x + y - 2 ^ { w } , } & { 2 ^ { w - 1 } \leq x + y } & { \text { Positive overflow } } \\
     { x + y , } & { - 2 ^ { w - 1 } \leq x + y < 2 ^ { w - 1 } } & { \text { Normal } } \\
-    { x + y + 2 ^ { w } , } & { x + y < - 2 ^ { w - 1 } } & { \text { Negative overflow } } \end{array} \right . \text {(2.13)}
+    { x + y + 2 ^ { w } , } & { x + y < - 2 ^ { w - 1 } } & { \text { Negative overflow } } \end{array} \right.\text {(2.13)}
 $$
