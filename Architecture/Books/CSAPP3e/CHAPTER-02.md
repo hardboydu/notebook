@@ -13,4 +13,4 @@ x + _ { w } ^ { \mathrm { t } } y = \left.\{ \begin{array} { l l }
     { x + y + 2 ^ { w } , } & { x + y < - 2 ^ { w - 1 } } & { \text { Negative overflow } } \end{array} \right.
 $$
 
-$x + _ { w } ^ { \mathrm { t } } y = \left.\{ \begin{array} { l l } { x + y - 2 ^ { w } , } & { 2 ^ { w - 1 } \leq x + y } & { \text { Positive overflow } } \\ { x + y , } & { - 2 ^ { w - 1 } \leq x + y < 2 ^ { w - 1 } \text { Normal } } \\ { x + y + 2 ^ { w } , } & { x + y < - 2 ^ { w - 1 } } & { \text { Negative overflow } } \end{array} \right.$
+$x + _ { w } ^ { \mathrm { t } } y = \left.\{ \begin{array} { l l } { x + y - 2 ^ { w } , } & { 2 ^ { w - 1 } \leq x + y } & { \text { Positive overflow } } \\ { x + y , } & { - 2 ^ { w - 1 } \leq x + y < 2 ^ { w - 1 } \text { Normal } } \\ { x + y + 2 ^ { w } , } & { x + y < - 2 ^ { w - 1 } } & { \text { Negative overflow } } \end{array} \} \right.$
