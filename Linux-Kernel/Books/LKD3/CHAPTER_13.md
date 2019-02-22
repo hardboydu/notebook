@@ -64,7 +64,7 @@ A file is an ordered string of bytes.The first byte marks the beginning of the f
 
 一个文件其实可以看做是一个有序字节串，字节串的第一个字节是文件的头，最后一个字节是文件的尾。每一个文件为了便于系统和用户识别，都被分配了一个便于理解的名字。典型的文件操作有读、写、创建、和删除等。Unix 文件的概念与面向记录的文件系统（如 OpenVMS 的 File-11）形成了鲜明的对照。面型记录的文件系统提供更丰富、更结构化的表示，而简单的面向字节流抽象的文件则以简单性和相当的灵活性为代价。
 
-Files are organized in directories.A directory is analogous to a folder and usually contains related files. Directories can also contain other directories, called subdirectories. In this fashion, directories may be nested to form paths. Each component of a path is called a directory entry. A path example is `/home/wolfman/butter` — the root directory `/` , the directories `home` and `wolfman` , and the file `butter` are all directory entries, called dentries.In Unix, directories are actually normal files that simply list the files contained therein. Because a directory is a file to the VFS, the same operations performed on files can be performed on directories.
+Files are organized in directories.A directory is analogous to a folder and usually contains related files. Directories can also contain other directories, called subdirectories. In this fashion, directories may be nested to form paths. Each component of a path is called a directory entry. A path example is `/home/wolfman/butter` — the root directory `/` , the directories `home` and `wolfman` , and the file `butter` are all directory entries, called dentries. In Unix, directories are actually normal files that simply list the files contained therein. Because a directory is a file to the VFS, the same operations performed on files can be performed on directories.
 
 文件通过目录组织起来。文件目录好比一个文件夹，用来容纳相关的文件。因为目录也可以包含其他目录，即子目录，所以目录可以层层嵌套，形成文件路径。路径中每一部分都被称为目录条目。`/home/wolfman/butter` 是文件路径的一个例子 —— 根目录 `/` ，目录 `home`，`wolfman` 和文件 `buffer` 都是目录条目，它们统称为目录项。在 Unix 中，目录属于普通文件，它列出包含在其中的所有文件。由于VFS 把目录当做文件对待，所以可以对目录执行和文件相同的操作。
 
@@ -332,3 +332,427 @@ struct inode {
     void                  *i_private;       /* fs private pointer */
 };
 ```
+
+An inode represents each file on a filesystem, but the inode object is constructed in memory only as files are accessed.This includes special files, such as device files or pipes. Consequently, some of the entries in struct inode are related to these special files. For example, the i_pipe entry points to a named pipe data structure, i_bdev points to a block device structure, and i_cdev points to a character device structure.These three pointers are stored in a union because a given inode can represent only one of these (or none of them) at a time.
+
+It might occur that a given filesystem does not support a property represented in the inode object. For example, some filesystems might not record an access timestamp. In that case, the filesystem is free to implement the feature however it sees fit; it can store zero for i_atime , make i_atime equal to i_mtime , update i_atime in memory but never flush it back to disk, or whatever else the filesystem implementer decides.
+
+## Inode Operations
+
+As with the superblock operations, the inode_operations member is important. It describes the filesystem’s implemented functions that the VFS can invoke on an inode. As with the superblock, inode operations are invoked via :
+
+```c
+i->i_op->truncate(i)
+```
+
+In this call, i is a reference to a particular inode. In this case, the `truncate()` operation defined by the filesystem on which i exists is called on the given inode. The inode_operations structure is defined in `<linux/fs.h>`:
+
+```c
+struct inode_operations {
+    int (*create)(struct inode *, struct dentry *, int, struct nameidata *);
+    struct dentry *(*lookup)(struct inode *, struct dentry *,
+                             struct nameidata *);
+    int (*link)(struct dentry *, struct inode *, struct dentry *);
+    int (*unlink)(struct inode *, struct dentry *);
+    int (*symlink)(struct inode *, struct dentry *, const char *);
+    int (*mkdir)(struct inode *, struct dentry *, int);
+    int (*rmdir)(struct inode *, struct dentry *);
+    int (*mknod)(struct inode *, struct dentry *, int, dev_t);
+    int (*rename)(struct inode *, struct dentry *, struct inode *,
+                  struct dentry *);
+    int (*readlink)(struct dentry *, char __user *, int);
+    void *(*follow_link)(struct dentry *, struct nameidata *);
+    void (*put_link)(struct dentry *, struct nameidata *, void *);
+    void (*truncate)(struct inode *);
+    int (*permission)(struct inode *, int);
+    int (*setattr)(struct dentry *, struct iattr *);
+    int (*getattr)(struct vfsmount *mnt, struct dentry *, struct kstat *);
+    int (*setxattr)(struct dentry *, const char *, const void *, size_t, int);
+    ssize_t (*getxattr)(struct dentry *, const char *, void *, size_t);
+    ssize_t (*listxattr)(struct dentry *, char *, size_t);
+    int (*removexattr)(struct dentry *, const char *);
+    void (*truncate_range)(struct inode *, loff_t, loff_t);
+    long (*fallocate)(struct inode *inode, int mode, loff_t offset, loff_t len);
+    int (*fiemap)(struct inode *, struct fiemap_extent_info *, u64 start,
+                  u64 len);
+};
+```
+
+The following interfaces constitute the various functions that the VFS may perform, or ask a specific filesystem to perform, on a given inode:
+
+* `int create(struct inode *dir, struct dentry *dentry, int mode)` <br> The VFS calls this function from the `creat()` and `open()` system calls to create a new inode associated with the given dentry object with the specified initial access mode.
+* `struct dentry * lookup(struct inode *dir, struct dentry *dentry)` <br> This function searches a directory for an inode corresponding to a filename specified in the given dentry.
+* `int link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)` <br> Invoked by the link() system call to create a hard link of the file old_dentry in the directory dir with the new filename dentry .
+* `int unlink(struct inode *dir, struct dentry *dentry)` <br> Called from the unlink() system call to remove the inode specified by the directory entry dentry from the directory dir .
+* `int symlink(struct inode *dir, struct dentry *dentry, const char *symname)` <br> Called from the symlink() system call to create a symbolic link named symname to the file represented by dentry in the directory dir.
+* `int mkdir(struct inode *dir, struct dentry *dentry, int mode)` <br> Called from the mkdir() system call to create a new directory with the given initial mode.
+* `int rmdir(struct inode *dir, struct dentry *dentry)` <br> Called by the rmdir() system call to remove the directory referenced by dentry from the directory dir .
+* `int mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)` <br> Called by the mknod() system call to create a special file (device file, named pipe, or socket).The file is referenced by the device rdev and the directory entry dentry in the directory dir .The initial permissions are given via mode.
+* `int rename(struct inode *old_dir, struct dentry *old_dentry, struct inode *new_dir, struct dentry *new_dentry` <br> Called by the VFS to move the file specified by old_dentry from the old_dir directory to the directory new_dir , with the filename specified by new_dentry .
+* `int readlink(struct dentry *dentry, char *buffer, int buflen)` <br> Called by the readlink() system call to copy at most buflen bytes of the full path associated with the symbolic link specified by dentry into the specified buffer.
+* `int follow_link(struct dentry *dentry, struct nameidata *nd)` <br> Called by the VFS to translate a symbolic link to the inode to which it points.The link pointed at by dentry is translated, and the result is stored in the `nameidata` structure pointed at by nd .
+* `int put_link(struct dentry *dentry, struct nameidata *nd)` <br> Called by the VFS to clean up after a call to `follow_link()` .
+* `void truncate(struct inode *inode)` <br> Called by the VFS to modify the size of the given file. Before invocation, the inode’s `i_size` field must be set to the desired new size.
+* `int permission(struct inode *inode, int mask)` <br> Checks whether the specified access mode is allowed for the file referenced by inode. This function returns zero if the access is allowed and a negative error code otherwise. Most filesystems set this field to NULL and use the generic VFS method, which simply compares the mode bits in the inode’s objects to the given mask. More complicated filesystems, such as those supporting access control lists (ACLs), have a specific permission() method.
+* `int setattr(struct dentry *dentry, struct iattr *attr)` <br> Called from notify_change() to notify a “change event” after an inode has been modified.
+* `int getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)` <br> Invoked by the VFS upon noticing that an inode needs to be refreshed from disk. Extended attributes allow the association of key/values pairs with files.
+* `int setxattr(struct dentry *dentry, const char *name, const void *value, size_t size, int flags)` <br> Used by the VFS to set the extended attribute name to the value value on the file referenced by dentry .
+* `ssize_t getxattr(struct dentry *dentry, const char *name, void *value, size_t size)` <br> Used by the VFS to copy into value the value of the extended attribute name for the specified file.
+* `ssize_t listxattr(struct dentry *dentry, char *list, size_t size)` <br> Copies the list of all attributes for the specified file into the buffer list .
+* `int removexattr(struct dentry *dentry, const char *name)` <br> Removes the given attribute from the given file.
+
+## The Dentry Object
+
+As discussed, the VFS treats directories as a type of file. In the path /bin/vi , both bin and vi are files— bin being the special directory file and vi being a regular file. An inode object represents each of these components. Despite this useful unification, the VFS often needs to perform directory-specific operations, such as path name lookup. Path name lookup involves translating each component of a path, ensuring it is valid, and following it to the next component.
+
+To facilitate this, the VFS employs the concept of a directory entry (dentry).A dentry is a specific component in a path. Using the previous example, / , bin , and vi are all dentry objects.The first two are directories and the last is a regular file.This is an important point: Dentry objects are all components in a path, including files. Resolving a path and walking its components is a nontrivial exercise, time-consuming and heavy on string operations, which are expensive to execute and cumbersome to code.The dentry object makes the whole process easier.
+
+Dentries might also include mount points. In the path /mnt/cdrom/foo , the components / , mnt , cdrom , and foo are all dentry objects.The VFS constructs dentry objects on-the-fly, as needed, when performing directory operations.
+
+Dentry objects are represented by struct dentry and defined in `<linux/dcache.h>` . Here is the structure, with comments describing each member:
+
+```c
+struct dentry {
+    atomic_t                  d_count;   /* usage count */
+    unsigned int              d_flags;   /* dentry flags */
+    spinlock_t                d_lock;    /* per-dentry lock */
+    int                       d_mounted; /* is this a mount point? */
+    struct inode             *d_inode;   /* associated inode */
+    struct hlist_node         d_hash;    /* list of hash table entries */
+    struct dentry            *d_parent;  /* dentry object of parent */
+    struct qstr               d_name;    /* dentry name */
+    struct list_head          d_lru;     /* unused list */
+    union {
+        struct list_head      d_child;   /* list of dentries within */
+        struct rcu_head       d_rcu;     /* RCU locking */
+    } d_u;
+    struct list_head          d_subdirs; /* subdirectories */
+    struct list_head          d_alias;   /* list of alias inodes */
+    unsigned long             d_time;    /* revalidate time */
+    struct dentry_operations *d_op;      /* dentry operations table */
+    struct super_block       *d_sb;      /* superblock of file */
+    void                     *d_fsdata;  /* filesystem-specific data */
+    unsigned char             d_iname[DNAME_INLINE_LEN_MIN]; /* short name */
+};
+```
+
+Unlike the previous two objects, the dentry object does not correspond to any sort of on-disk data structure.The VFS creates it on-the-fly from a string representation of a path name. Because the dentry object is not physically stored on the disk, no flag in struct dentry specifies whether the object is modified (that is, whether it is dirty and needs to be written back to disk).
+
+### Dentry State
+
+A valid dentry object can be in one of three states: used, unused, or negative.
+
+A used dentry corresponds to a valid inode ( d_inode points to an associated inode) and indicates that there are one or more users of the object ( d_count is positive).A used dentry is in use by the VFS and points to valid data and, thus, cannot be discarded.
+
+An unused dentry corresponds to a valid inode ( d_inode points to an inode), but the VFS is not currently using the dentry object ( d_count is zero). Because the dentry object still points to a valid object, the dentry is kept around—cached—in case it is needed again. Because the dentry has not been destroyed prematurely, the dentry need not be recreated if it is needed in the future, and path name lookups can complete quicker than if the dentry was not cached. If it is necessary to reclaim memory, however, the dentry can be discarded because it is not in active use.
+
+A negative dentry is not associated with a valid inode ( d_inode is NULL ) because either the inode was deleted or the path name was never correct to begin with.The dentry is kept around, however, so that future lookups are resolved quickly. For example, consider a daemon that continually tries to open and read a config file that is not present.The open() system calls continually returns ENOENT , but not until after the kernel constructs the path, walks the on-disk directory structure, and verifies the file’s inexistence. Because even this failed lookup is expensive, caching the “negative” results are worthwhile. Although a negative dentry is useful, it can be destroyed if memory is at a premium because nothing is actually using it.
+
+A dentry object can also be freed, sitting in the slab object cache, as discussed in the previous chapter. In that case, there is no valid reference to the dentry object in any VFS or any filesystem code.
+
+### The Dentry Cache
+
+After the VFS layer goes through the trouble of resolving each element in a path name into a dentry object and arriving at the end of the path, it would be quite wasteful to throw away all that work. Instead, the kernel caches dentry objects in the dentry cache or, simply, the dcache.
+
+The dentry cache consists of three parts:
+
+* Lists of “used” dentries linked off their associated inode via the i_dentry field of the inode object. Because a given inode can have multiple links, there might be multiple dentry objects; consequently, a list is used.
+* A doubly linked “least recently used” list of unused and negative dentry objects. The list is inserted at the head, such that entries toward the head of the list are newer than entries toward the tail.When the kernel must remove entries to reclaim memory, the entries are removed from the tail; those are the oldest and presumably have the least chance of being used in the near future.
+* A hash table and hashing function used to quickly resolve a given path into the associated dentry object.
+
+The hash table is represented by the dentry_hashtable array. Each element is a pointer to a list of dentries that hash to the same value.The size of this array depends on the amount of physical RAM in the system.
+
+The actual hash value is determined by `d_hash()`. This enables filesystems to provide a unique hashing function.
+
+Hash table lookup is performed via d_lookup() . If a matching dentry object is found in the dcache, it is returned. On failure, NULL is returned.
+
+As an example, assume that you are editing a source file in your home directory, `/home/dracula/src/the_sun_sucks.c`. Each time this file is accessed (for example, when you first open it, later save it, compile it, and so on), the VFS must follow each directory entry to resolve the full path: `/` , `home` , `dracula`, `src`, and finally `the_sun_sucks.c`. To avoid this time-consuming operation each time this path name is accessed, the VFS can first try to look up the path name in the dentry cache. If the lookup succeeds, the required final dentry object is obtained without serious effort. Conversely, if the dentry is not in the dentry cache, the VFS must manually resolve the path by walking the filesystem for each component of the path.After this task is completed, the kernel adds the dentry objects to the dcache to speed up any future lookups.
+
+The dcache also provides the front end to an inode cache, the icache. Inode objects that are associated with dentry objects are not freed because the dentry maintains a positive usage count over the inode.This enables dentry objects to pin inodes in memory. As long as the dentry is cached, the corresponding inodes are cached, too. Consequently, when a path name lookup succeeds from cache, as in the previous example, the associated inodes are already cached in memory.
+
+Caching dentries and inodes is beneficial because file access exhibits both spatial and temporal locality. File access is temporal in that programs tend to access and reaccess the same files over and over.Thus when a file is accessed, there is a high probability that caching the associated dentries and inodes will result in a cache hit in the near future. File access is spatial in that programs tend to access multiple files in the same directory.Thus caching directories entries for one file have a high probability of a cache hit, as a related file is likely manipulated next.
+
+## Dentry Operations
+
+The dentry_operations structure specifies the methods that the VFS invokes on directory entries on a given filesystem.
+
+The dentry_operations structure is defined in `<linux/dcache.h>` :
+
+```c
+struct dentry_operations {
+    int (*d_revalidate)(struct dentry *, struct nameidata *);
+    int (*d_hash)(struct dentry *, struct qstr *);
+    int (*d_compare)(struct dentry *, struct qstr *, struct qstr *);
+    int (*d_delete)(struct dentry *);
+    void (*d_release)(struct dentry *);
+    void (*d_iput)(struct dentry *, struct inode *);
+    char *(*d_dname)(struct dentry *, char *, int);
+};
+```
+
+The methods are as follows:
+
+* `int d_revalidate(struct dentry *dentry, struct nameidata *)` <br> Determines whether the given dentry object is valid.The VFS calls this function whenever it is preparing to use a dentry from the dcache. Most filesystems set this method to NULL because their dentry objects in the dcache are always valid.
+* `int d_hash(struct dentry *dentry, struct qstr *name)` <br> Creates a hash value from the given dentry.The VFS calls this function whenever it adds a dentry to the hash table.
+* `int d_compare(struct dentry *dentry, struct qstr *name1, struct qstr *name2)` <br> Called by the VFS to compare two filenames, name1 and name2 . Most filesystems leave this at the VFS default, which is a simple string compare. For some filesystems, such as FAT, a simple string compare is insufficient.The FAT filesystem is not casesensitive and therefore needs to implement a comparison function that disregards case.This function requires the dcache_lock .
+* `int d_delete (struct dentry *dentry)` <br> Called by the VFS when the specified dentry object’s d_count reaches zero. This function requires the dcache_lock and the dentry’s d_lock. 
+* `void d_release(struct dentry *dentry)` <br> Called by the VFS when the specified dentry is going to be freed.The default function does nothing.
+* `void d_iput(struct dentry *dentry, struct inode *inode)` <br> Called by the VFS when a dentry object loses its associated inode (say, because the entry was deleted from the disk). By default, the VFS simply calls the iput() function to release the inode. If a filesystem overrides this function, it must also call `iput()` in addition to performing whatever filesystem-specific work it requires.
+
+## The File Object
+
+The final primary VFS object that we shall look at is the file object.The file object is used to represent a file opened by a process.When we think of the VFS from the perspective of user-space, the file object is what readily comes to mind. Processes deal directly with files, not superblocks, inodes, or dentries. It is not surprising that the information in the file object is the most familiar (data such as access mode and current offset) or that the file operations are familiar system calls such as `read()` and `write()` .
+
+The file object is the in-memory representation of an open file.The object (but not the physical file) is created in response to the open() system call and destroyed in response to the close() system call.All these file-related calls are actually methods defined in the file operations table. Because multiple processes can open and manipulate a file at the same time, there can be multiple file objects in existence for the same file.The file object merely represents a process’s view of an open file.The object points back to the dentry (which in turn points back to the inode) that actually represents the open file. The inode and dentry objects, of course, are unique.
+
+The file object is represented by struct file and is defined in `<linux/fs.h>` . Let’s look at the structure, again with comments added to describe each entry:
+
+```c
+struct file {
+    union {
+        struct list_head fu_list;    /* list of file objects */
+        struct rcu_head  fu_rcuhead; /* RCU list after freeing */
+    } f_u;
+    struct path             f_path;            /* contains the dentry */
+    struct file_operations *f_op;              /* file operations table */
+    spinlock_t              f_lock;            /* per-file struct lock */
+    atomic_t                f_count;           /* file object’s usage count */
+    unsigned int            f_flags;           /* flags specified on open */
+    mode_t                  f_mode;            /* file access mode */
+    loff_t                  f_pos;             /* file offset (file pointer) */
+    struct fown_struct      f_owner;           /* owner data for signals */
+    const struct cred      *f_cred;            /* file credentials */
+    struct file_ra_state    f_ra;              /* read-ahead state */
+    u64                     f_version;         /* version number */
+    void                   *f_security;        /* security module */
+    void                   *private_data;      /* tty driver hook */
+    struct list_head        f_ep_links;        /* list of epoll links */
+    spinlock_t              f_ep_lock;         /* epoll lock */
+    struct address_space   *f_mapping;         /* page cache mapping */
+    unsigned long           f_mnt_write_state; /* debugging state */
+};
+```
+
+Similar to the dentry object, the file object does not actually correspond to any on-disk data.Therefore, no flag in the object represents whether the object is dirty and needs to be written back to disk.The file object does point to its associated dentry object via the f_dentry pointer.The dentry in turn points to the associated inode, which reflects whether the file itself is dirty.
+
+## File Operations
+
+As with all the otherVFS objects, the file operations table is quite important.The operations associated with struct file are the familiar system calls that form the basis of the standard Unix system calls.
+
+The file object methods are specified in file_operations and defined in `<linux/fs.h>` :
+
+```c
+struct file_operations {
+    struct module *owner;
+    loff_t (*llseek)(struct file *, loff_t, int);
+    ssize_t (*read)(struct file *, char __user *, size_t, loff_t *);
+    ssize_t (*write)(struct file *, const char __user *, size_t, loff_t *);
+    ssize_t (*aio_read)(struct kiocb *, const struct iovec *, unsigned long,
+                        loff_t);
+    ssize_t (*aio_write)(struct kiocb *, const struct iovec *, unsigned long,
+                         loff_t);
+    int (*readdir)(struct file *, void *, filldir_t);
+    unsigned int (*poll)(struct file *, struct poll_table_struct *);
+    int (*ioctl)(struct inode *, struct file *, unsigned int, unsigned long);
+    long (*unlocked_ioctl)(struct file *, unsigned int, unsigned long);
+    long (*compat_ioctl)(struct file *, unsigned int, unsigned long);
+    int (*mmap)(struct file *, struct vm_area_struct *);
+    int (*open)(struct inode *, struct file *);
+    int (*flush)(struct file *, fl_owner_t id);
+    int (*release)(struct inode *, struct file *);
+    int (*fsync)(struct file *, struct dentry *, int datasync);
+    int (*aio_fsync)(struct kiocb *, int datasync);
+    int (*fasync)(int, struct file *, int);
+    int (*lock)(struct file *, int, struct file_lock *);
+    ssize_t (*sendpage)(struct file *, struct page *, int, size_t, loff_t *,
+                        int);
+    unsigned long (*get_unmapped_area)(struct file *, unsigned long,
+                                       unsigned long, unsigned long,
+                                       unsigned long);
+    int (*check_flags)(int);
+    int (*flock)(struct file *, int, struct file_lock *);
+    ssize_t (*splice_write)(struct pipe_inode_info *, struct file *, loff_t *,
+                            size_t, unsigned int);
+    ssize_t (*splice_read)(struct file *, loff_t *, struct pipe_inode_info *,
+                           size_t, unsigned int);
+    int (*setlease)(struct file *, long, struct file_lock **);
+};
+```
+
+Filesystems can implement unique functions for each of these operations, or they can use a generic method if one exists.The generic methods tend to work fine on normal Unix-based filesystems.A filesystem is under no obligation to implement all these methods—although not implementing the basics is silly—and can simply set the method to NULL if not interested.
+
+Here are the individual operations:
+
+* `loff_t llseek(struct file *file, loff_t offset, int origin)` <br> Updates the file pointer to the given offset. It is called via the llseek() system call.
+* `ssize_t read(struct file *file, char *buf, size_t count, loff_t *offset)` <br> Reads count bytes from the given file at position offset into buf .The file pointer is then updated.This function is called by the read() system call.
+* `ssize_t aio_read(struct kiocb *iocb, char *buf, size_t count, loff_t offset)` <br> Begins an asynchronous read of count bytes into buf of the file described in iocb . This function is called by the aio_read() system call.
+* `ssize_t write(struct file *file, const char *buf, size_t count, loff_t *offset)` <br> Writes count bytes from buf into the given file at position offset .The file pointer is then updated.This function is called by the write() system call. 
+* `ssize_t aio_write(struct kiocb *iocb, const char *buf, size_t count, loff_t offset)` <br> Begins an asynchronous write of count bytes into buf of the file described in iocb. This function is called by the aio_write() system call.
+* `int readdir(struct file *file, void *dirent, filldir_t filldir)` <br> Returns the next directory in a directory listing.This function is called by the readdir() system call.
+* `unsigned int poll(struct file *file, struct poll_table_struct *poll_table)` <br> Sleeps, waiting for activity on the given file. It is called by the poll() system call.
+* `int ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)` <br> Sends a command and argument pair to a device. It is used when the file is an open device node.This function is called from the ioctl() system call. Callers must hold the BKL.
+* `int unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)` <br> Implements the same functionality as ioctl() but without needing to hold the BKL.The VFS calls unlocked_ioctl() if it exists in lieu of ioctl() when userspace invokes the ioctl() system call.Thus filesystems need implement only one, preferably unlocked_ioctl().
+* `int compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)` <br> Implements a portable variant of ioctl() for use on 64-bit systems by 32-bit applications.This function is designed to be 32-bit safe even on 64-bit architectures, performing any necessary size conversions. New drivers should design their ioctl commands such that all are portable, and thus enable compat_ioctl() and unlocked_ioctl() to point to the same function. Like unlocked_ioctl(), compat_ioctl() does not hold the BKL.
+* `int mmap(struct file *file, struct vm_area_struct *vma)` <br> Memory maps the given file onto the given address space and is called by the `mmap()` system call.
+* `int open(struct inode *inode, struct file *file)` <br> Creates a new file object and links it to the corresponding inode object. It is called by the open() system call.
+* `int flush(struct file *file)` <br> Called by the VFS whenever the reference count of an open file decreases. Its purpose is filesystem-dependent.
+* `int release(struct inode *inode, struct file *file)` <br> Called by the VFS when the last remaining reference to the file is destroyed — for example, when the last process sharing a file descriptor calls close() or exits. Its purpose is filesystem-dependent.
+* `int fsync(struct file *file, struct dentry *dentry, int datasync)` <br> Called by the fsync() system call to write all cached data for the file to disk.
+* `int aio_fsync(struct kiocb *iocb, int datasync)` <br> Called by the aio_fsync() system call to write all cached data for the file associated with iocb to disk.
+* `int fasync(int fd, struct file *file, int on)` <br> Enables or disables signal notification of asynchronous I/O.
+* `int lock(struct file *file, int cmd, struct file_lock *lock)` <br> Manipulates a file lock on the given file.
+* `ssize_t readv(struct file *file, const struct iovec *vector, unsigned long count, loff_t *offset)` <br> Called by the readv() system call to read from the given file and put the results into the count buffers described by vector .The file offset is then incremented.
+* `ssize_t writev(struct file *file, const struct iovec *vector, unsigned long count, loff_t *offset)` <br> Called by the writev() system call to write from the count buffers described by vector into the file specified by file .The file offset is then incremented. 
+* `ssize_t sendfile(struct file *file, loff_t *offset, size_t size, read_actor_t actor, void *target)` <br> Called by the sendfile() system call to copy data from one file to another. It performs the copy entirely in the kernel and avoids an extraneous copy to user-space.
+* `ssize_t sendpage(struct file *file, struct page *page, int offset, size_t size, loff_t *pos, int more)` <br> Used to send data from one file to another.
+* `unsigned long get_unmapped_area(struct file *file, unsigned long addr, unsigned long len, unsigned long offset, unsigned long flags)` <br> Gets unused address space to map the given file.
+* `int check_flags(int flags)` <br> Used to check the validity of the flags passed to the fcntl() system call when the SETFL command is given.As with many VFS operations, filesystems need not implement check_flags() ; currently, only NFS does so.This function enables filesystems to restrict invalid SETFL flags otherwise enabled by the generic fcntl() function. In the case of NFS, combining O_APPEND and O_DIRECT is not enabled.
+* `int flock(struct file *filp, int cmd, struct file_lock *fl)` <br> Used to implement the flock() system call, which provides advisory locking.
+
+> **So Many Ioctls!**
+> 
+> Not long ago, there existed only a single ioctl method. Today, there are three methods. unlocked_ioctl() is the same as ioctl() , except it is called without the Big Kernel Lock (BKL). It is thus up to the author of that function to ensure proper synchronization. Because the BKL is a coarse-grained, inefficient lock, drivers should implement unlocked_ioctl() and not ioctl().
+> 
+> compat_ioctl() is also called without the BKL, but its purpose is to provide a 32-bit compatible ioctl method for 64-bit systems. How you implement it depends on your existing ioctl commands. Older drivers with implicitly sized types (such as long ) should implement a compat_ioctl() method that works appropriately with 32-bit applications. This generally means translating the 32-bit values to the appropriate types for a 64-bit kernel. New drivers that have the luxury of designing their ioctl commands from scratch should ensure all their arguments and data are explicitly sized, safe for 32-bit apps on a 32-bit system, 32-bit apps on a 64-bit system, and 64-bit apps on a 64-bit system. These drivers can then point the compat_ioctl() function pointer at the same function as unlocked_ioctl().
+
+## Data Structures Associated with Filesystems
+
+In addition to the fundamental VFS objects, the kernel uses other standard data structures to manage data related to filesystems.The first object is used to describe a specific variant of a filesystem, such as ext3, ext4, or UDF. The second data structure describes a mounted instance of a filesystem.
+
+Because Linux supports so many different filesystems, the kernel must have a special structure for describing the capabilities and behavior of each filesystem. The file_system_type structure, defined in `<linux/fs.h>` , accomplishes this:
+
+```c
+struct file_system_type {
+    const char              *name;      /* filesystem’s name */
+    int                      fs_flags;  /* filesystem type flags */
+
+    /* the following is used to read the superblock off the disk */
+    struct super_block    *(*get_sb)(struct file_system_type *, int, char *,
+                                  void *);
+    /* the following is used to terminate access to the superblock */
+    void                   (*kill_sb)(struct super_block *);
+
+    struct module           *owner;     /* module owning the filesystem */
+    struct file_system_type *next;      /* next file_system_type in list */
+    struct list_head         fs_supers; /* list of superblock objects */
+
+    /* the remaining fields are used for runtime lock validation */
+    struct lock_class_key    s_lock_key;
+    struct lock_class_key    s_umount_key;
+    struct lock_class_key    i_lock_key;
+    struct lock_class_key    i_mutex_key;
+    struct lock_class_key    i_mutex_dir_key;
+    struct lock_class_key    i_alloc_sem_key;
+};
+```
+
+The get_sb() function reads the superblock from the disk and populates the superblock object when the filesystem is loaded.The remaining functions describe the filesystem’s properties.
+
+There is only one file_system_type per filesystem, regardless of how many instances of the filesystem are mounted on the system, or whether the filesystem is even mounted at all.
+
+Things get more interesting when the filesystem is actually mounted, at which point the vfsmount structure is created.This structure represents a specific instance of a filesystem — in other words, a mount point.
+
+The vfsmount structure is defined in `<linux/mount.h>`. Here it is:
+
+```c
+struct vfsmount {
+    struct list_head      mnt_hash;        /* hash table list */
+    struct vfsmount      *mnt_parent;      /* parent filesystem */
+    struct dentry        *mnt_mountpoint;  /* dentry of this mount point */
+    struct dentry        *mnt_root;        /* dentry of root of this fs */
+    struct super_block   *mnt_sb;          /* superblock of this filesystem */
+    struct list_head      mnt_mounts;      /* list of children */
+    struct list_head      mnt_child;       /* list of children */
+    int                   mnt_flags;       /* mount flags */
+    char                 *mnt_devname;     /* device file name */
+    struct list_head      mnt_list;        /* list of descriptors */
+    struct list_head      mnt_expire;      /* entry in expiry list */
+    struct list_head      mnt_share;       /* entry in shared mounts list */
+    struct list_head      mnt_slave_list;  /* list of slave mounts */
+    struct list_head      mnt_slave;       /* entry in slave list */
+    struct vfsmount      *mnt_master;      /* slave’s master */
+    struct mnt_namespace *mnt_namespace;   /* associated namespace */
+    int                   mnt_id;          /* mount identifier */
+    int                   mnt_group_id;    /* peer group identifier */
+    atomic_t              mnt_count;       /* usage count */
+    int                   mnt_expiry_mark; /* is marked for expiration */
+    int                   mnt_pinned;      /* pinned count */
+    int                   mnt_ghosts;      /* ghosts count */
+    atomic_t              __mnt_writers;   /* writers count */
+};
+```
+
+The complicated part of maintaining the list of all mount points is the relation between the filesystem and all the other mount points.The various linked lists in vfsmount keep track of this information.
+
+The vfsmount structure also stores the flags, if any, specified on mount in the mnt_flags field.Table 13.1 is a list of the standard mount flags.
+
+Table 13.1 **Standard Mount Flags**
+|Flag         | Description
+|-------------|-------------------------------------------------------------------
+|`MNT_NOSUID` | Forbids setuid and setgid flags on binaries on this filesystem
+|`MNT_NODEV`  | Forbids access to device files on this filesystem
+|`MNT_NOEXEC` | Forbids execution of binaries on this filesystem
+
+These flags are most useful on removable devices that the administrator does not trust. They are defined in `<linux/mount.h>` along with other, lesser used, flags.
+
+## Data Structures Associated with a Process
+
+Each process on the system has its own list of open files, root filesystem, current working directory, mount points, and so on.Three data structures tie together the VFS layer and the processes on the system: files_struct , fs_struct , and namespace .
+
+The files_struct is defined in <linux/fdtable.h> .This table’s address is pointed to by the files entry in the processor descriptor.All per-process information about open files and file descriptors is contained therein. Here it is, with comments:
+
+```c
+struct files_struct {
+    atomic_t                count;                     /* usage count */
+    struct fdtable         *fdt;                       /* pointer to other fd table */
+    struct fdtable          fdtab;                     /* base fd table */
+    spinlock_t              file_lock;                 /* per-file lock */
+    int                     next_fd;                   /* cache of next available fd */
+    struct embedded_fd_set  close_on_exec_init;        /* list of close-on-exec fds */
+    struct embedded_fd_set  open_fds_init;             /* list of open fds */
+    struct file            *fd_array[NR_OPEN_DEFAULT]; /* base files array */
+};
+```
+
+The array fd_array points to the list of open file objects. Because NR_OPEN_DEFAULT is equal to BITS_PER_LONG , which is 64 on a 64-bit architecture; this includes room for 64 file objects. If a process opens more than 64 file objects, the kernel allocates a new array and points the fdt pointer at it. In this fashion, access to a reasonable number of file objects is quick, taking place in a static array. If a process opens an abnormal number of files, the kernel can create a new array. If the majority of processes on a system opens more than 64 files, for optimum performance the administrator can increase the NR_OPEN_DEFAULT preprocessor macro to match.
+
+The second process-related structure is fs_struct , which contains filesystem information related to a process and is pointed at by the fs field in the process descriptor. The structure is defined in `<linux/fs_struct.h>`. Here it is, with comments:
+
+```c
+struct fs_struct {
+    int         users;   /* user count */
+    rwlock_t    lock;    /* per-structure lock */
+    int         umask;   /* umask */
+    int         in_exec; /* currently executing a file */
+    struct path root;    /* root directory */
+    struct path pwd;     /* current working directory */
+};
+```
+
+This structure holds the current working directory ( pwd ) and root directory of the current process.
+
+The third and final structure is the namespace structure, which is defined in `<linux/mnt_namespace.h>` and pointed at by the mnt_namespace field in the process descriptor. Per-process namespaces were added to the 2.4 Linux kernel.They enable each process to have a unique view of the mounted filesystems on the system—not just a unique root directory, but an entirely unique filesystem hierarchy. Here is the structure, with the usual comments:
+
+```c
+struct mnt_namespace {
+    atomic_t          count; /* usage count */
+    struct vfsmount  *root;  /* root directory */
+    struct list_head  list;  /* list of mount points */
+    wait_queue_head_t poll;  /* polling waitqueue */
+    int               event; /* event count */
+};
+```
+
+The list member specifies a doubly linked list of the mounted filesystems that make up the namespace.
+
+These data structures are linked from each process descriptor. For most processes, the process descriptor points to unique files_struct and fs_struct structures. For processes created with the clone flag CLONE_FILES or CLONE_FS, however, these structures are shared. 3 Consequently, multiple process descriptors might point to the same files_struct or fs_struct structure.The count member of each structure provides a reference count to prevent destruction while a process is still using the structure. 
+
+The namespace structure works the other way around. By default, all processes share the same namespace. (That is, they all see the same filesystem hierarchy from the same mount table.) Only when the CLONE_NEWNS flag is specified during clone() is the process given a unique copy of the namespace structure. Because most processes do not provide this flag, all the processes inherit their parents’ namespaces. Consequently, on many systems there is only one namespace, although the functionality is but a single CLONE_NEWNS flag away.
+
+## Conclusion
+
+Linux supports a wide range of filesystems, from native filesystems, such as ext3 and ext4, to networked filesystems, such as NFS and Coda—more than 60 filesystems alone in the official kernel.The VFS layer provides these disparate filesystems with both a framework for their implementation and an interface for working with the standard system calls. The VFS layer, thus, both makes it clean to implement new filesystems in Linux and enables those filesystems to automatically interoperate via the standard Unix system calls.
+
+> <up>3</up> Threads usually specify `CLONE_FILES` and `CLONE_FS` and, thus, share a single files_struct and fs_struct among themselves. Normal processes, on the other hand, do not specify these flags and consequently have their own filesystems information and open files tables.
+
+This chapter described the purpose of the VFS and discussed its various data structures, including the all-important inode, dentry, and superblock objects. Chapter 14,“The Block I/O Layer,” discusses how data physically ends up in a filesystem.
