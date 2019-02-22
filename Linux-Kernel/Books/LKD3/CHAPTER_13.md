@@ -687,11 +687,12 @@ The complicated part of maintaining the list of all mount points is the relation
 The vfsmount structure also stores the flags, if any, specified on mount in the mnt_flags field.Table 13.1 is a list of the standard mount flags.
 
 Table 13.1 **Standard Mount Flags**
-|Flag         | Description
-|-------------|-------------------------------------------------------------------
-|`MNT_NOSUID` | Forbids setuid and setgid flags on binaries on this filesystem
-|`MNT_NODEV`  | Forbids access to device files on this filesystem
-|`MNT_NOEXEC` | Forbids execution of binaries on this filesystem
+
+|Flag         | Description                                                       |
+|-------------|-------------------------------------------------------------------|
+|`MNT_NOSUID` | Forbids setuid and setgid flags on binaries on this filesystem    |
+|`MNT_NODEV`  | Forbids access to device files on this filesystem                 |
+|`MNT_NOEXEC` | Forbids execution of binaries on this filesystem                  |
 
 These flags are most useful on removable devices that the administrator does not trust. They are defined in `<linux/mount.h>` along with other, lesser used, flags.
 
