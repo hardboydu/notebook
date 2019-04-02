@@ -1,4 +1,4 @@
-# DPDK Memeory
+# DPDK Memeory physical
 
 ## EAL initialization parameters
 
