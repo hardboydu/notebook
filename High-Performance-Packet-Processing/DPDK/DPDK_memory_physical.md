@@ -7,8 +7,6 @@
 -r RANKS            Force number of memory ranks (don't detect)
 ```
 
-
-
 Depending on hardware memory configuration, performance can be greatly improved by adding a specific padding between objects. The objective is to ensure that the beginning of each object starts on a different channel and rank in memory so that all channels are equally loaded.
 
 根据硬件内存配置，通过在对象之间添加特定填充可以大大提高性能。目标是确保每个对象的起始位置存放在内存中不同的通道和阵列，以便所有通道均等加载。
