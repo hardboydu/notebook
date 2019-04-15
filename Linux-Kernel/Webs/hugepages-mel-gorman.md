@@ -6,9 +6,15 @@
 
 One of the driving forces behind the development of Virtual Memory (VM) was to reduce the programming burden associated with fitting programs into limited memory. A fundamental property of VM is that the CPU references a virtual address that is translated via a combination of software and hardware to a physical address. This allows information only to be paged into memory on demand (demand paging) improving memory utilisation, allows modules to be arbitrary placed in memory for linking at run-time and provides a mechanism for the protection and controlled sharing of data between processes. Use of virtual memory is so pervasive that it has been described as an “one of the engineering triumphs of the computer age” [denning96] but this indirection is not without cost.
 
+开发**虚拟内存（VM）** 背后的驱动力之一是减少与将程序安装到有限内存相关的编程负担。VM 的基本属性是CPU引用通过软件和硬件的组合转换为物理地址的虚拟地址。这允许仅根据需要将信息分页到内存（请求分页），从而提高内存利用率，允许模块在运行时任意放置在内存中以进行链接，并提供在进程之间保护和控制数据共享的机制。虚拟内存的使用是如此普遍，以至于它被描述为“计算机时代的工程胜利之一”[denning96]，但这种间接并非没有成本。
+
 Typically, the total number of translations required by a program during its lifetime will require that the page tables are stored in main memory. Due to translation, a virtual memory reference necessitates multiple accesses to physical memory, multiplying the cost of an ordinary memory reference by a factor depending on the page table format. To cut the costs associated with translation, VM implementations take advantage of the principal of locality [denning71] by storing recent translations in a cache called the Translation Lookaside Buffer (TLB) [casep78,smith82,henessny90]. The amount of memory that can be translated by this cache is referred to as the "TLB reach" and depends on the size of the page and the number of TLB entries. Inevitably, a percentage of a program's execution time is spent accessing the TLB and servicing TLB misses.
 
+通常，程序在其生命周期内所需的翻译总数将要求页表存储在主存储器中。由于转换，虚拟存储器引用需要多次访问物理存储器，将普通存储器引用的成本乘以取决于页表格式的因子。为了降低与翻译相关的成本，VM实现通过将最近的翻译存储在名为Translation Lookaside Buffer（TLB）[casep78，smith82，henessny90]的缓存中来利用locality [denning71]的原理。此缓存可以转换的内存量称为“TLB覆盖率”，取决于页面大小和TLB条目数。不可避免地，程序执行时间的百分比用于访问TLB和服务TLB未命中。
+
 The amount of time spent translating addresses depends on the workload as the access pattern determines if the TLB reach is sufficient to store all translations needed by the application. On a miss, the exact cost depends on whether the information necessary to translate the address is in the CPU cache or not. To work out the amount of time spent servicing the TLB misses, there are some simple formulas:
+
+转换地址所花费的时间量取决于工作负载，因为访问模式确定TLB范围是否足以存储应用程序所需的所有转换。在未命中时，确切的成本取决于转换地址所需的信息是否在CPU高速缓存中。为了计算服务TLB未命中所花费的时间，有一些简单的公式：
 
 ```latex
 Cyclestlbhit = TLBHitRate * TLBHitPenalty
@@ -23,18 +29,29 @@ TLBMissTime = (TLB Miss Cycles)/(Clock rate)
 
 If the TLB miss time is a large percentage of overall program execution, then the time should be invested to reduce the miss rate and achieve better performance. One means of achieving this is to translate addresses in larger units than the base page size, as supported by many modern processors.
 
+如果TLB未命中时间占整个程序执行的很大一部分，那么应该投入时间来降低未命中率并获得更好的性能。实现此目的的一种方法是以大于基页大小的单位转换地址，这是许多现代处理器所支持的。
+
 Using more than one page size was identified in the 1990s as one means of reducing the time spent servicing TLB misses by increasing TLB reach. The benefits of huge pages are twofold. The obvious performance gain is from fewer translations requiring fewer cycles. A less obvious benefit is that address translation information is typically stored in the L2 cache. With huge pages, more cache space is available for application data, which means that fewer cycles are spent accessing main memory. Broadly speaking, database workloads will gain about 2-7% performance using huge pages whereas scientific workloads can range between 1% and 45%.
+
+在20世纪90年代，使用多个页面大小确定了通过增加TLB覆盖率来减少服务TLB未命中所花费的时间的一种方法。大页面的好处是双重的。显而易见的性能增益来自需要更少周期的更少翻译。不太明显的好处是地址转换信息通常存储在L2高速缓存中。对于大页面，可用于应用程序数据的缓存空间更多，这意味着访问主内存所花费的周期更少。从广义上讲，使用大页面，数据库工作负载将获得约2-7％的性能，而科学工作负载可以在1％到45％之间。
 
 Huge pages are not a universal gain, so transparent support for huge pages is limited in mainstream operating systems. On some TLB implementations, there may be different numbers of entries for small and huge pages. If the CPU supports a smaller number of TLB entries for huge pages, it is possible that huge pages will be slower if the workload reference pattern is very sparse and making a small number of references per-huge-page. There may also be architectural limitations on where in the virtual address space huge pages can be used.
 
+巨大的页面不是普遍的增益，因此对主要操作系统的大页面的透明支持是有限的。在一些 TLB 实现中，对于小页面和大页面可能存在不同数量的条目。如果CPU支持较大数量的TLB条目用于大页面，那么如果工作负载参考模式非常稀疏并且每个巨大页面产生少量引用，则大页面可能会变慢。在虚拟地址空间中可以使用大页面的位置也可能存在架构限制。
+
 Many modern operating systems, including Linux, support huge pages in a more explicit fashion, although this does not necessarily mandate application change. Linux has had support for huge pages since around 2003 where it was mainly used for large shared memory segments in database servers such as Oracle and DB2. Early support required application modification, which was considered by some to be a major problem. To compound the difficulties, tuning a Linux system to use huge pages was perceived to be a difficult task. There have been significant improvements made over the years to huge page support in Linux and as this article will show, using huge pages today can be a relatively painless exercise that involves no source modification.
+
+许多现代操作系统（包括Linux）以更明确的方式支持大页面，尽管这并不一定要求更改应用程序。自2003年左右以来，Linux一直支持大页面，主要用于数据库服务器（如Oracle和DB2）中的大型共享内存段。早期支持需要修改应用程序，有些人认为这是一个主要问题。为了解决这些困难，调整Linux系统以使用大页面被认为是一项艰巨的任务。多年来，Linux中的大量页面支持已经取得了重大进展，正如本文将要展示的那样，今天使用大页面可能是一个相对轻松的练习，不涉及任何源代码修改。
 
 This first article begins by installing some huge-page-related utilities and support libraries that make tuning and using huge pages a relatively painless exercise. It then covers the basics of how huge pages behave under Linux and some details of concern on NUMA. The second article covers the different interfaces to huge pages that exist in Linux. In the third article, the different considerations to make when tuning the system are examined as well as how to monitor huge-page-related activities in the system. The fourth article shows how easily benchmarks for different types of application can use huge pages without source modification. For the very curious, some in-depth details on TLBs and measuring the cost within an application are discussed before concluding.
 
+第一篇文章首先安装一些与页面相关的大型实用程序和支持库，这些库使调优和使用大页面成为一种相对轻松的练习。然后介绍了Linux下大页面行为的基础知识以及NUMA关注的一些细节。第二篇文章介绍了Linux中存在的大页面的不同接口。在第三篇文章中，将研究调整系统时要考虑的不同因素，以及如何监视系统中与大页面相关的活动。第四篇文章展示了不同类型应用程序的基准测试如何轻松地使用大页面而无需修改源代码。对于非常好奇，在结束之前讨论TLB的一些深入细节并测量应用程序中的成本。
+
 ### 1 Huge Page Utilities and Support Libraries
 
-1 Huge Page Utilities and Support Libraries
 There are a number of support utilities and a library packaged collectively as libhugetlbfs. Distributions may have packages, but this article assumes that libhugetlbfs 2.7 is installed. The latest version can always be cloned from git using the following instructions
+
+有许多支持实用程序和一个库集中打包为 `libhugetlbfs`。分发可能有包，但本文假定已安装`libhugetlbfs 2.7`。可以使用以下说明始终从 git 克隆最新版本
 
 ```sh
   $ git clone git://libhugetlbfs.git.sourceforge.net/gitroot/libhugetlbfs/libhugetlbfs
@@ -43,21 +60,37 @@ There are a number of support utilities and a library packaged collectively as l
   $ make PREFIX=/usr/local
 ```
 
-There is an install target that installs the library and all support utilities but there are install-bin, install-stat and install-man targets available in the event the existing library should be preserved during installation.
+> 目前 代码已经迁移到 github 上了 https://github.com/libhugetlbfs/libhugetlbfs
+
+There is an `install` target that installs the library and all support utilities but there are install-bin, install-stat and install-man targets available in the event the existing library should be preserved during installation.
+
+有一个`install target` 可以安装库和所有支持实用程序，但是如果在安装期间应该保留现有库，则可以使用 `install-bin`，`install-stat` 和 `install-man`。
 
 The library provides support for automatically backing text, data, heap and shared memory segments with huge pages. In addition, this package also provides a programming API and manual pages. The behaviour of the library is controlled by environment variables (as described in the libhugetlbfs.7 manual page) with a launcher utility hugectl that knows how to configure almost all of the variables. hugeadm, hugeedit and pagesize provide information about the system and provide support to system administration. tlbmiss_cost.sh automatically calculates the average cost of a TLB miss. cpupcstat and oprofile_start.sh provide help with monitoring the current behaviour of the system. Manual pages are available describing in further detail each utility.
+
+该库提供了对大页面自动备份文本，数据，堆和共享内存段的支持。此外，该软件包还提供了编程API和手册页。库的行为由环境变量（如 `libhugetlbfs.7` 手册页中所述）控制，启动器实用程序 `hugectl` 知道如何配置几乎所有变量。 `hugeadm`，`hugeedit`和`pagesize` 提供有关系统的信息并为系统管理提供支持。 `tlbmiss_cost.sh` 自动计算TLB未命中的平均成本。`cpupcstat` 和 `oprofile_start.sh` 提供有关监视系统当前行为的帮助。手册页可用于更详细地描述每个实用程序。
 
 ### 2 Huge Page Fault Behaviour
 
 In the following articles, there will be discussions on how different type of memory regions can be created and backed with huge pages. One important common point between them all is how huge pages are faulted and when the huge pages are allocated. Further, there are important differences between shared and private mappings depending on the exact kernel version used.
 
-In the initial support for huge pages on Linux, huge pages were faulted at the same time as mmap() was called. This guaranteed that all references would succeed for shared mappings once mmap() returned successfully. Private mappings were safe until fork() was called. Once called, it's important that the child call exec() as soon as possible or that the huge page mappings were marked MADV_DONTFORK with madvise() in advance. Otherwise, a Copy-On-Write (COW) fault could result in application failure by either parent or child in the event of allocation failure.
+在下面的文章中，将讨论如何创建不同类型的内存区域并使用大页面进行备份。它们之间的一个重要共同点是巨大的页面出现故障以及何时分配大页面。此外，共享映射和私有映射之间存在重要差异，具体取决于所使用的确切内核版本。
+
+In the initial support for huge pages on Linux, huge pages were faulted at the same time as `mmap()` was called. This guaranteed that all references would succeed for shared mappings once `mmap()` returned successfully. Private mappings were safe until `fork()` was called. Once called, it's important that the child call `exec()` as soon as possible or that the huge page mappings were marked MADV_DONTFORK with `madvise()` in advance. Otherwise, a Copy-On-Write (COW) fault could result in application failure by either parent or child in the event of allocation failure.
+
+在对Linux上的大页面的初始支持中，在调用 `mmap()` 的同时，大页面出现故障。这保证了一旦 `mmap()`成功返回，所有引用都将成功进行共享映射。在调用 `fork()`之前，私有映射是安全的。一旦调用，重要的是子进程尽快调用 `exec()` 或者大型页面映射事先用 `madvise()` 标记为MADV_DONTFORK。否则，在分配失败的情况下，写时复制（COW）故障可能导致父或子应用程序失败。
 
 Pre-faulting pages drastically increases the cost of mmap() and can perform sub-optimally on NUMA. Since 2.6.18, huge pages were faulted the same as normal mappings when the page was first referenced. To guarantee that faults would succeed, huge pages were reserved at the time the shared mapping is created but private mappings do not make any reservations. This is unfortunate as it means an application can fail without fork() being called. libhugetlbfs handles the private mapping problem on old kernels by using readv() to make sure the mapping is safe to access, but this approach is less than ideal.
 
+预错误页面大大增加了 `mmap()` 的成本，并且可以在NUMA上执行次优。从2.6.18开始，当首次引用页面时，大页面的错误与普通映射相同。为了保证错误成功，在创建共享映射时保留了大页面，但私有映射不进行任何预留。这很不幸，因为这意味着如果没有 `fork()` 被调用，应用程序可能会失败。`libhugetlbfs`通过使用 `readv()` 来处理旧内核上的私有映射问题，以确保映射可以安全访问，但这种方法并不理想。
+
 Since 2.6.29, reservations are made for both shared and private mappings. Shared mappings are guaranteed to successfully fault regardless of what process accesses the mapping.
 
+从2.6.29开始，对共享映射和私有映射都进行了预留。无论哪个进程访问映射，共享映射都可以保证成功发生故障。
+
 For private mappings, the number of child processes is indeterminable so only the process that creates the mapping mmap() is guaranteed to successfully fault. When that process fork()s, two processes are now accessing the same pages. If the child performs COW, an attempt will be made to allocate a new page. If it succeeds, the fault successfully completes. If the fault fails, the child gets terminated with a message logged to the kernel log noting that there were insufficient huge pages. If it is the parent process that performs COW, an attempt will also be made to allocate a huge page. In the event that allocation fails, the child's pages are unmapped and the event recorded. The parent successfully completes the fault but if the child accesses the unmapped page, it will be terminated.
+
+对于私有映射，子进程的数量是不确定的，因此只有创建映射 `mmap()` 的进程才能保证成功发生故障。当进程 `fork()` 时，两个进程现在访问相同的页面。如果子进程执行 `COW`，则将尝试分配新页面。如果成功，则故障成功完成。如果故障失败，则子进程终止，并在内核日志中记录消息，指出没有足够大的页面。如果它是执行 `COW` 的父进程，则还将尝试分配大页面。如果分配失败，则子页面将被取消映射并记录事件。父成功完成故障但如果子进入未映射的页面，它将被终止。
 
 ### 3 Huge Pages and Swap
 
