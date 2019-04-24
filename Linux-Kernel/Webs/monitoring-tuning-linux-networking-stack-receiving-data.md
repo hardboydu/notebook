@@ -1310,7 +1310,7 @@ You can usually get statistics about the success (or failure) of your ntuple rul
 
 Before examining the network stack, we’ll need to take a short detour to examine something in the Linux kernel called SoftIRQs.
 
-#### What is a softirq?
+#### What is a softirq ?
 
 The softirq system in the Linux kernel is a mechanism for executing code outside of the context of an interrupt handler implemented in a driver. This system is important because hardware interrupts may be disabled during all or part of the execution of an interrupt handler. The longer interrupts are disabled, the greater chance that events may be missed. So, it is important to defer any long running actions outside of the interrupt handler so that it can complete as quickly as possible and re-enable interrupts from the device.
 
