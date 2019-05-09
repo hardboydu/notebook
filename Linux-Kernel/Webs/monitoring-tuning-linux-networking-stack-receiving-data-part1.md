@@ -56,9 +56,9 @@ Adjusting networking settings while connected to the machine over a network is d
 
 ## Overview
 
-For reference, you may want to have a copy of the device data sheet handy. This post will examine the Intel I350 Ethernet controller, controlled by the `igb` device driver. You can find that data sheet (warning: LARGE PDF) [here for your reference](http://www.intel.com/content/dam/www/public/us/en/documents/datasheets/ethernet-controller-i350-datasheet.pdf).
+For reference, you may want to have a copy of the device data sheet handy. This post will examine the `Intel I350 Ethernet controller`, controlled by the `igb` device driver. You can find that data sheet (warning: LARGE PDF) [here for your reference](http://www.intel.com/content/dam/www/public/us/en/documents/datasheets/ethernet-controller-i350-datasheet.pdf).
 
-作为参考，您可能希望获得设备数据表的副本。本文将介绍由`igb`设备驱动程序控制的 Intel I350 以太网控制器。您可以在此处找到该数据表（警告：PDF文件很大）供您[参考](http://www.intel.com/content/dam/www/public/us/en/documents/datasheets/ethernet-controller-i350-datasheet.pdf)。
+作为参考，您可能希望获得设备数据表的副本。本文将介绍由`igb`设备驱动程序控制的 `Intel I350 以太网控制器`。您可以在此处找到该数据表（警告：PDF文件很大）供您[参考](http://www.intel.com/content/dam/www/public/us/en/documents/datasheets/ethernet-controller-i350-datasheet.pdf)。
 
 The high level path a packet takes from arrival to socket receive buffer is as follows:
 
@@ -68,11 +68,11 @@ The high level path a packet takes from arrival to socket receive buffer is as f
 2. Packet arrives at the `NIC` from the network. <br> 数据包从网络到达 `NIC`。
 3. Packet is copied (via `DMA`) to a ring buffer in kernel memory. <br> 数据包被复制（通过 `DMA`）到内核内存中的环形缓冲区。
 4. Hardware interrupt is generated to let the system know a packet is in memory. <br> 生成硬件中断以使系统知道数据包在内存中。
-5. Driver calls into NAPI to start a poll loop if one was not running already. <br> 驱动程序调用NAPI以启动轮询循环（如果尚未运行）。
-6. `ksoftirqd` processes run on each CPU on the system. They are registered at boot time. The  ksoftirqd processes pull packets off the ring buffer by calling the NAPI `poll` function that the device driver registered during initialization. <br> `ksoftirqd` 进程在系统上的每个CPU上运行。它们在启动时注册。 `ksoftirqd` 进程通过调用设备驱动程序在初始化期间注册的 `NAPI` `poll` 函数将数据包从环形缓冲区中拉出。
+5. Driver calls into `NAPI` to start a poll loop if one was not running already. <br> 驱动程序调用 `NAPI` 以启动轮询循环（如果尚未运行）。
+6. `ksoftirqd` processes run on each CPU on the system. They are registered at boot time. The  ksoftirqd processes pull packets off the ring buffer by calling the NAPI `poll` function that the device driver registered during initialization. <br> `ksoftirqd` 进程在系统上的每个CPU上运行，它们在启动时注册。 `ksoftirqd` 进程通过调用设备驱动程序在初始化期间注册的 `NAPI` `poll` 函数将数据包从环形缓冲区中拉出。
 7. Memory regions in the ring buffer that have had network data written to them are unmapped. <br> 环形缓冲区中网络数据的内存区域设置成未映射。
-8. Data that was DMA’d into memory is passed up the networking layer as an `skb` for more processing. <br> DMA进入内存的数据作为 `skb` 传递到网络层以进行更多处理。
-9. Incoming network data frames are distributed among multiple CPUs if packet steering is enabled or if the NIC has multiple receive queues. <br> 如果启用了数据包转向或者NIC具有多个接收队列，则传入的网络数据帧分布在多个CPU之间。
+8. Data that was `DMA’d` into memory is passed up the networking layer as an `skb` for more processing. <br> `DMA` 进入内存的数据作为 `skb` 传递到网络层以进行更多处理。
+9. Incoming network data frames are distributed among multiple `CPUs` if packet steering is enabled or if the `NIC` has multiple receive queues. <br> 如果启用了数据包转向或者 `NIC` 具有多个接收队列，则传入的网络数据帧分布在多个 `CPU` 之间。
 10. Network data frames are handed to the protocol layers from the queues. <br> 网络数据帧从队列传递到协议层。
 11. Protocol layers process data. <br> 协议层处理数据。
 12. Data is added to receive buffers attached to sockets by protocol layers. <br> 添加数据以接收协议层连接到套接字的缓冲区。
