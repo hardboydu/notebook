@@ -170,3 +170,4 @@ Swap: 14843896k total,        0k used, 14843896k free, 10545620k cached
 ## Reference
 
 * [记录一个软中断问题](https://blog.huoding.com/2013/10/30/296)
+* [扛住100亿次请求？我们来试一试](https://github.com/xiaojiaqi/10billionhongbaos)
