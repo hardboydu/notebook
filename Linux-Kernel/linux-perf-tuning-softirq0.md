@@ -166,3 +166,7 @@ Swap: 14843896k total,        0k used, 14843896k free, 10545620k cached
  2039 nobody    20   0  449m 404m 1648 S 16.3  0.8  15:17.14 nginx
  2041 nobody    20   0  445m 400m 1648 S 15.6  0.8  14:40.79 nginx
 ```
+
+## Reference
+
+* [记录一个软中断问题](https://blog.huoding.com/2013/10/30/296)
