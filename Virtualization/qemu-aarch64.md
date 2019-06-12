@@ -22,6 +22,7 @@
 * [Running an ISO installer image for arm64 (AArch64) using QEMU and KVM](http://www.redfelineninja.org.uk/daniel/2018/02/running-an-iso-installer-image-for-arm64-aarch64-using-qemu-and-kvm/)
 * [Using UEFI in QEMU/KVM (AArch64 + AArch32)](https://web.archive.org/web/20180218102845/https://wiki.linaro.org/LEG/UEFIforQEMU)
 * [Virtualize UEFI on ARM using QEMU](https://designprincipia.com/virtualize-uefi-on-arm-using-qemu/)
+* [Device 'vfio-pci' could not be initialized](https://www.linux.org.ru/forum/general/12459285)
 
 下载 BIOS 固件
 
