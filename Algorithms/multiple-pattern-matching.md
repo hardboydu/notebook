@@ -1,0 +1,27 @@
+# Multiple Pattern Matching
+
+## Wu-Manber
+
+Wu-Manber algorithm is a simple variant of the Boyer-Moore algorithm that uses the badcharacter shift for multiple pattern matching. They actually come to the idea of this algorithm after making a UNIX based tool agrep [10] which was for searching many patterns in files. To improve the performance, they come through a unique idea, that is, their algorithms looks at block of text instead of single character. So, they consider both pattern and text as blocks of size B instead of single characters. As recommended in their paper [3], in practice B could be equal to 2 for a small pattern set size or to 3 otherwise.
+
+Wu-Manber算法是Boyer-Moore算法的一个简单变体，它使用坏字符移位进行多模式匹配。 在制作基于UNIX的工具agrep [10]之后，他们实际上已经想到了这个算法，该工具用于搜索文件中的许多模式。 为了提高性能，他们通过一个独特的想法，即他们的算法查看文本块而不是单个字符。 因此，他们将模式和文本都视为大小为B的块而不是单个字符。 正如他们的论文[3]中所建议的那样，在实践中，对于小的图案集大小，B可以等于2，否则等于3。
+
+The operational process of the WM algorithm includes two phases. In first phase which is called preprocessing phase, three tables are constructed by the patterns, the SHIFT, the PREFIX and the HASH tables. The SHIFT table stores the shift values of the block characters that determine the safe shifting of characters during the searching phase. If a block of B characters does not occur in any pattern, then the shift value for that block assigns to the maximum value, which is m − B + 1. The HASH table stores hashed values (h) of B characters suffix of each pattern while the PREFIX stores hashed values (h′) of B’ characters prefix of a list of patterns that they have the same suffix.
+
+WM算法的操作过程包括两个阶段。 在称为预处理阶段的第一阶段中，由模式，SHIFT，PREFIX和HASH表构成三个表。 SHIFT表存储块字符的移位值，用于确定搜索阶段中字符的安全移位。 如果任何模式中没有出现B字符块，则该块的移位值分配给最大值，即m-B + 1.HASH表存储每个模式的B字符后缀的散列值（h） 而PREFIX存储散列值（h'）的B'字符前缀的模式列表，它们具有相同的后缀。
+
+The second part of the algorithm is the searching phase. During this phase, the algorithm is searching for the occurrences of all patterns in the input text with the assistant of the three tables that have been created by the previous state. Firstly, a hash value (h) for the block of B characters is calculated into the current search window and the shift value for that is checked (SHIFT[h]). If the shift value is greater than zero, then the current search window is shifted by SHIFT[h] positions, or else there is a potential matching and the tables HASH and PREFIX should be considered in order to validate the matching.
+
+算法的第二部分是搜索阶段。 在此阶段，算法将使用先前状态创建的三个表的助手搜索输入文本中所有模式的出现。 首先，将B字符块的散列值（h）计算到当前搜索窗口中，并检查其移位值（SHIFT [h]）。 如果移位值大于零，则当前搜索窗口移位SHIFT [h]位置，否则存在潜在匹配，应考虑表HASH和PREFIX以验证匹配。
+
+The first thing is to compute the minimum length of a pattern, call it m, and consider only the first m characters of each pattern. This requirement is crucial to the efficiency of the algorithm. If one of the patterns is very short, say of length 2, then it is not possible to shift by more than 2, so having short patterns inherently makes this approach less efficient. The expected running time complexity of the main matching phase/ searching phase is shown by Wu-Manber to be less than linear in n (the length of the input text) [3].
+
+第一件事是计算模式的最小长度，将其称为m，并仅考虑每个模式的前m个字符。 该要求对算法的效率至关重要。 如果其中一个模式非常短，比如长度为2，则不可能移位超过2，因此短模式本身会使这种方法效率降低。 主要匹配阶段/搜索阶段的预期运行时间复杂度由Wu-Manber显示为小于n的线性（输入文本的长度）[3]。
+
+The algorithms that offer the solution for the multi-pattern matching problem, among them Aho-Corasick, Commentz-Walter, and Wu-Manber algorithms are very popular solutions. A comprehensive analysis and discussion of these selected algorithms as a state-of-the-art along with some experimental results is covered in this article. This paper has presented the analysis and discussion of the algorithms in order to understand the multiple pattern matching problem in an easier manner.
+
+为多模式匹配问题提供解决方案的算法，其中包括Aho-Corasick，Commentz-Walter和Wu-Manber算法是非常流行的解决方案。 本文将介绍这些选定算法作为最新技术的综合分析和讨论，以及一些实验结果。 本文介绍了算法的分析和讨论，以便更容易地理解多模式匹配问题。
+
+The Aho-Corasick algorithm considers as a classic solution and core element of many other pattern matching algorithms. Also it has been used in many other applications. As it is a linear time algorithm, it is considered very useful solution for multiple pattern matching problems. On the other side, Commentz-Walter algorithm seems to be the first sub-linear running time algorithm for multiple-pattern matching problems in average case by using a sifting technique where a large portion of the text is skipped while searching. The Wu-Manber algorithm has excellent average case performance because of the successful use of shifting operation as a block of characters. However, Wu-Manber algorithm has minimum length problem. If the minimum length of pattern is less, then it is not as efficient as it should be. So it would be an optimization area for Wu-Manber algorithm. For the Aho-Corasick and Commentz-Walter algorithms, memory compression would be a good optimizing area as they consume lots of memory. Also subset division of pattern set could be another way for the optimization of Aho-Corasick algorithm.
+
+Aho-Corasick算法被认为是许多其他模式匹配算法的经典解决方案和核心元素。它也被用于许多其他应用中。由于它是线性时间算法，因此被认为是多模式匹配问题的非常有用的解决方案。另一方面，Commentz-Walter算法似乎是第一个使用筛选技术的多模式匹配问题的子线性运行时算法，其中大部分文本在搜索时被跳过。由于成功地将移位操作用作字符块，因此Wu-Manber算法具有出色的平均情况性能。然而，Wu-Manber算法具有最小长度问题。如果模式的最小长度较小，那么它就不如它应该有效。因此，这将是Wu-Manber算法的优化领域。对于Aho-Corasick和Commentz-Walter算法，内存压缩将是一个很好的优化区域，因为它们占用大量内存。模式集的子集划分也可以是Aho-Corasick算法优化的另一种方式。
