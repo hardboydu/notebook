@@ -282,71 +282,91 @@ Allocate and attach an `mbuf cluster` to `mbuf`. On success, a nonzero value ret
 将 `mbuf cluster` 分配并附加到 `mbuf`。成功时，返回非零值; 从历史上看，消费者会通过测试`mbuf`上的`M_EXT`标志来检查是否成功，但现在不鼓励这样做以避免在协议栈和设备驱动程序中不必要地意识到外部存储的实现。
 
 * **`M_ALIGN(mbuf, len)`**<br>
-Set the pointer `mbuf-_m_data` to place an object of the size `len` at the end of the internal data area of `mbuf`, `long word` aligned. Applicable only if `mbuf` is newly allocated with `MGET()` or `m_get()`.
+Set the pointer `mbuf-_m_data` to place an object of the size `len` at the end of the internal data area of `mbuf`, `long word` aligned. Applicable only if `mbuf` is newly allocated with `MGET()` or `m_get()`. <br><br>
+设置指针`mbuf-_m_data`，在`mbuf`，`long word`对齐的内部数据区末尾放置一个大小为`len`的对象。 仅当`mbuf`新分配了`MGET（）`或`m_get（）`时才适用。
 
 * **`MH_ALIGN(mbuf, len)`**<br>
-Serves the same purpose as `M_ALIGN()` does, but only for mbuf newly allocated with `MGETHDR()` or `m_gethdr()`, or initialized by `m_dup_pkthdr()` or `m_move_pkthdr()`.
+Serves the same purpose as `M_ALIGN()` does, but only for mbuf newly allocated with `MGETHDR()` or `m_gethdr()`, or initialized by `m_dup_pkthdr()` or `m_move_pkthdr()`.<br><br>
+具有与`M_ALIGN()`相同的目的，但仅适用于使用`MGETHDR()`或`m_gethdr()`重新分配的mbuf，或者由`m_dup_pkthdr()`或`m_move_pkthdr()`初始化的mbuf。
 
 * **`m_align(mbuf, len)`**<br>
-Services the same purpose as `M_ALIGN()` but handles any type of `mbuf`.
+Services the same purpose as `M_ALIGN()` but handles any type of `mbuf`.<br><br>
+提供与`M_ALIGN()`相同的目的，但处理任何类型的`mbuf`。
 
 * **`M_LEADINGSPACE(mbuf)`**<br>
-Returns the number of bytes available before the beginning of data in `mbuf`.
+Returns the number of bytes available before the beginning of data in `mbuf`.<br><br>
+返回`mbuf`中数据开头之前可用的字节数。
 
 * **`M_TRAILINGSPACE(mbuf)`**<br>
-Returns the number of bytes available after the end of data in `mbuf`.
+Returns the number of bytes available after the end of data in `mbuf`.<br><br>
+返回`mbuf`中数据结尾后可用的字节数。
 
-* **`M_PREPEND(mbuf, len,	how)`**<br>
-This macro operates on an `mbuf chain`. It is an optimized wrapper for `m_prepend()` that can make use of possible empty space before data (e.g. left after trimming of a link-layer header). The new `mbuf chain` pointer or `NULL` is in `mbuf` after the call.
+* **`M_PREPEND(mbuf, len, how)`**<br>
+This macro operates on an `mbuf chain`. It is an optimized wrapper for `m_prepend()` that can make use of possible empty space before data (e.g. left after trimming of a link-layer header). The new `mbuf chain` pointer or `NULL` is in `mbuf` after the call.<br><br>
+这个宏在`mbuf chain` 上运行。 它是 `m_prepend()` 的优化包装器，它可以在数据之前利用可能的空白空间（例如，在修剪链路层头之后留下）。调用后，新的 `mbuf chain` 指针或`NULL`在`mbuf`中。
 
 * **`M_MOVE_PKTHDR(to, from)`**<br>
-Using this macro is equivalent to calling `m_move_pkthdr(to, from)`.
+Using this macro is equivalent to calling `m_move_pkthdr(to, from)`.<br><br>
+使用这个宏相当于调用`m_move_pkthdr(to，from)`。
 
 * **`M_WRITABLE(mbuf)`**<br>
-This macro will evaluate true if `mbuf` is not marked `M_RDONLY` and if either `mbuf` does not contain external storage or, if it does, then if the reference count of the storage is not greater	than 1.	The `M_RDONLY` flag can be set in `mbuf-_m_flags`. This can be achieved during setup of the external storage, by passing the	`M_RDONLY` bit as a flags argument to the `MEXTADD()` macro, or can be directly set in individual `mbufs`.
+This macro will evaluate true if `mbuf` is not marked `M_RDONLY` and if either `mbuf` does not contain external storage or, if it does, then if the reference count of the storage is not greater	than 1.	The `M_RDONLY` flag can be set in `mbuf-_m_flags`. This can be achieved during setup of the external storage, by passing the	`M_RDONLY` bit as a flags argument to the `MEXTADD()` macro, or can be directly set in individual `mbufs`.<br><br>
+如果`mbuf`没有标记为 `M_RDONLY` 并且 `mbuf` 不包含外部存储，或者如果它不包含外部存储，那么这个宏将评估为真，如果存储的引用计数不大于 1. `M_RDONLY` 标志可以在`mbuf-_m_flags`中设置。这可以在外部存储设置期间通过将 `M_RDONLY` 位作为 `flags` 参数传递给`MEXTADD()`宏来实现，或者可以直接设置在单独的 `mbufs` 中。
 
 * **`MCHTYPE(mbuf, type)`**<br>
-Change the type of `mbuf` to type. This is a relatively expensive operation and should be avoided.
+Change the type of `mbuf` to `type`. This is a relatively expensive operation and should be avoided.<br><br>
+将 `mbuf` 的类型更改为 `type`。 这是一项相对昂贵的操作，应该避免。
 
 The functions are:
 
 * **`m_get(how, type)`**<br>
-A function version of `MGET()` for non-critical paths.
+A function version of `MGET()` for non-critical paths.<br><br>
+用于非关键路径的函数版本`MGET()`。
 
 * **`m_get2(size, how, type, flags)`**<br>
-Allocate an `mbuf` with enough space to hold specified amount of data.
+Allocate an `mbuf` with enough space to hold specified amount of data.<br><br>
+分配一个具有足够空间的`mbuf`来保存指定数量的数据。
 
 * **`m_getm(orig, len, how, type)`**<br>
-Allocate len bytes worth of `mbufs` and `mbuf clusters` if necessary and append the resulting allocated `mbuf chain` to the `mbuf chain orig`, if it is `non-NULL`. If the allocation fails at any point, free whatever was allocated and return `NULL`. If orig is `non-NULL`, it will not be freed. It is possible to use `m_getm()` to either append len bytes to an existing `mbuf` or `mbuf chain` (for example, one which may be sitting in a pre-allocated ring) or to simply perform an all-or-nothing `mbuf` and `mbuf cluster` allocation.
+Allocate `len` bytes worth of `mbufs` and `mbuf clusters` if necessary and append the resulting allocated `mbuf chain` to the `mbuf chain orig`, if it is `non-NULL`. If the allocation fails at any point, free whatever was allocated and return `NULL`. If orig is `non-NULL`, it will not be freed. It is possible to use `m_getm()` to either append len bytes to an existing `mbuf` or `mbuf chain` (for example, one which may be sitting in a pre-allocated ring) or to simply perform an all-or-nothing `mbuf` and `mbuf cluster` allocation.<br><br>
+如果需要，分配值为`mbufs`和`mbuf clusters`的`len`字节，并将结果分配的`mbuf chain`附加到`mbuf chain orig`，如果它是`non-NULL`。 如果分配在任何时候失败，则释放分配的任何内容并返回`NULL`。 如果`orig`为`non-NULL`，则不会释放它。 可以使用`m_getm()`将`len`字节附加到现有的`mbuf`或`mbuf chain`（例如，可能位于预先分配的环中）或简单地执行全部或  - 没有`mbuf`和`mbuf cluster`分配。
 
 * **`m_gethdr(how, type)`**<br>
-A function version of `MGETHDR()` for non-critical paths.
+A function version of `MGETHDR()` for non-critical paths.<br><br>
+用于非关键路径的函数版本`MGETHDR()`。
 
 * **`m_getcl(how, type, flags)`**<br>
-Fetch an `mbuf` with a `mbuf cluster` attached to it. If one of the allocations fails, the entire allocation fails. This routine is the preferred way of fetching both the `mbuf` and `mbuf cluster` together, as it avoids having to `unlock/relock` between allocations. Returns `NULL` on failure.
+Fetch an `mbuf` with a `mbuf cluster` attached to it. If one of the allocations fails, the entire allocation fails. This routine is the preferred way of fetching both the `mbuf` and `mbuf cluster` together, as it avoids having to `unlock/relock` between allocations. Returns `NULL` on failure.<br><br>
+获取一个附有`mbuf cluster`的`mbuf`。 如果其中一个分配失败，则整个分配失败。 这个例程是同时获取`mbuf`和`mbuf cluster`的首选方法，因为它避免了在分配之间 `解锁/重新锁定`。 失败时返回`NULL`。
 
 * **`m_getjcl(how, type, flags, size)`**<br>
-This is like `m_getcl()` but it the size of the `cluster` allocated will be large enough for size bytes.
+This is like `m_getcl()` but it the size of the `cluster` allocated will be large enough for size bytes.<br><br>
+这就像`m_getcl()`但是它分配的`cluster`的大小对于大小字节来说足够大。
 
 * **`m_free(mbuf)`**<br>
-Frees `mbuf`. Returns `m_next` of the freed `mbuf`.
+Frees `mbuf`. Returns `m_next` of the freed `mbuf`.<br><br>
+释放`mbuf`。 返回释放的`mbuf`的`m_next`。
 
 The functions below operate on `mbuf chains`.
 
 * **`m_freem(mbuf)`**<br>
-Free an entire `mbuf chain`, including any external storage.
+Free an entire `mbuf chain`, including any external storage.<br><br>
+释放整个`mbuf chain`，包括任何外部存储。
 
 * **`m_adj(mbuf, len)`**<br>
-Trim len bytes from the head of an `mbuf chain` if `len` is positive, from the tail otherwise.
+Trim len bytes from the head of an `mbuf chain` if `len` is positive, from the tail otherwise.<br><br>
+如果`len`大于等于零，则从`mbuf chain`的头部修剪`len`个字节，否则从尾部修剪。
 
 * **`m_append(mbuf, len, cp)`**<br>
-Append `len` bytes of `data` `cp` to the `mbuf chain`. Extend the `mbuf chain` if the `new data` does not fit in existing space.
+Append `len` bytes of data `cp` to the `mbuf chain`. Extend the `mbuf chain` if the `new data` does not fit in existing space. <br><br>
+将`len`个字节的数据`cp`附加到`mbuf chain`。 如果新数据不适合现有空间，则扩展`mbuf chain`。
 
 * **`m_prepend(mbuf, len, how)`**<br>
-Allocate a new `mbuf` and prepend it to the `mbuf chain`, handle `M_PKTHDR` properly. **Note**: It does not allocate any `mbuf clusters`, so len must be less than `MLEN` or `MHLEN`, depending on the `M_PKTHDR` flag setting.
+Allocate a new `mbuf` and prepend it to the `mbuf chain`, handle `M_PKTHDR` properly. **Note**: It does not allocate any `mbuf clusters`, so len must be less than `MLEN` or `MHLEN`, depending on the `M_PKTHDR` flag setting.<br><br>
+分配一个新的`mbuf`并将其添加到`mbuf chain`，正确处理`M_PKTHDR`。 **注意**：它不分配任何`mbuf clusters`，因此`len`必须小于`MLEN`或`MHLEN`，具体取决于`M_PKTHDR`标志设置。
 
 * **`m_copyup(mbuf, len, dstoff)`**<br>
-Similar to `m_pullup()` but copies `len` bytes of data into a new `mbuf` at `dstoff` bytes into the `mbuf`. The `dstoff` argument aligns the data and leaves room for a link layer header. Returns the new `mbuf chain` on success, and frees the `mbuf chain` and returns `NULL` on failure. **Note**: The function does not allocate `mbuf clusters`, so `len + dstoff` must be less than `MHLEN`.
+Similar to `m_pullup()` but copies `len` bytes of data into a new `mbuf` at `dstoff` bytes into the `mbuf`. The `dstoff` argument aligns the data and leaves room for a link layer header. Returns the new `mbuf chain` on success, and frees the `mbuf chain` and returns `NULL` on failure. **Note**: The function does not allocate `mbuf clusters`, so `len + dstoff` must be less than `MHLEN`.<br><br>
 
 * **`m_pullup(mbuf, len)`**<br>
 Arrange that the first `len` bytes of an `mbuf chain` are contiguous and lay in the data area of `mbuf`, so they are accessible with `mtod(mbuf, type)`. It is important to remember that this may involve reallocating some `mbufs` and moving data so all pointers referencing `data` within the old `mbuf chain` must be recalculated or made invalid. Return the new `mbuf chain` on success, `NULL` on failure (the `mbuf chain` is freed in this case). **Note**: It does not allocate any `mbuf clusters`, so `len` must be less than or equal to `MHLEN`.
