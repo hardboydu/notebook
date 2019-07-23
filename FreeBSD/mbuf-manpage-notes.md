@@ -261,56 +261,54 @@ The system also supplies a default type of external storage buffer called an `mb
 
 There are numerous predefined macros and functions that provide the developer with common utilities.
 
-**`mtod(mbuf, type)`**
+**`mtod(mbuf, type)`**<br>
 Convert an `mbuf` pointer to a `data` pointer. The macro expands to the data pointer cast to the specified type. **Note:** It is advisable to ensure that there is enough contiguous data in `mbuf`. See `m_pullup()` for details.
 
 将`mbuf`指针转换为`data`指针。宏扩展为转换为指定类型的数据指针。注意：建议确保`mbuf`中有足够的连续数据。有关详细信息，请参阅 `m_pullup()`。
 
-**`MGET(mbuf, how, type)`**
+**`MGET(mbuf, how, type)`**<br>
 Allocate an `mbuf` and initialize it to contain internal data. `mbuf` will point to the allocated `mbuf` on success, or be set to `NULL` on failure. The how argument is to be set to `M_WAITOK` or `M_NOWAIT`. It specifies whether the caller is willing to block if necessary. A number of other functions and macros related to mbufs have the same argument because they may at some point need to allocate new `mbufs`.
 
 分配一个`mbuf`并初始化它以包含内部数据。`mbuf`将指向成功时分配的`mbuf`，或者在失败时设置为`NULL`。如何将参数设置为`M_WAITOK`或`M_NOWAIT`。它指定调用者是否愿意在必要时阻止。与`mbuf` 相关的许多其他函数和宏具有相同的参数，因为它们可能在某些时候需要分配新的 `mbufs`。
 
-**`MGETHDR(mbuf, how, type)`**
+**`MGETHDR(mbuf, how, type)`**<br>
 Allocate an `mbuf` and initialize it to contain a packet header and internal data.  See `MGET()` for details.
 
 分配一个`mbuf`并初始化它以包含一个包头和内部数据。 有关详细信息，请参阅`MGET()`。
 
-**`MEXTADD(mbuf, buf, size, free, opt_arg1, opt_arg2, flags, type)`**
+**`MEXTADD(mbuf, buf, size, free, opt_arg1, opt_arg2, flags, type)`**<br>
 Associate externally managed data with `mbuf`. Any internal data contained in the `mbuf` will be discarded, and the `M_EXT` flag will be set. The `buf` and `size` arguments are the address and length, respectively, of the data. The `free` argument points to a function which will be called to free the data when the `mbuf` is freed; it is only used if type is `EXT_EXTREF`. The `opt_arg1` and `opt_arg2` arguments will be saved in `ext_arg1` and `ext_arg2` fields of the `struct m_ext` of the `mbuf`. The `flags` argument specifies additional `mbuf` flags; it is not necessary to specify `M_EXT`. Finally, the `type` argument specifies the type of external data, which controls how it will be disposed of when the `mbuf` is freed. In most cases, the correct value is `EXT_EXTREF`.
 
 将外部管理的数据与`mbuf`相关联。`mbuf`中包含的任何内部数据都将被丢弃，并且将设置`M_EXT`标志。`buf`和`size`参数分别是数据的地址和长度。`free`参数指向一个函数，当`mbuf`被释放时，该函数将被调用以释放数据; 它仅在类型为`EXT_EXTREF`时使用。`opt_arg1`和`opt_arg2`参数将保存在`mbuf`的`struct m_ext`的`ext_arg1`和`ext_arg2`字段中。`flags`参数指定了额外的`mbuf`标志; 没有必要指定`M_EXT`。最后，`type` 参数指定外部数据的类型，它控制在释放`mbuf`时如何处理它。在大多数情况下，正确的值是 `EXT_EXTREF`。
 
-**`MCLGET(mbuf, how)`**
+**`MCLGET(mbuf, how)`**<br>
 Allocate and attach an `mbuf cluster` to `mbuf`. On success, a nonzero value returned; otherwise, 0. Historically, consumers would check for success by testing the `M_EXT` flag on the `mbuf`, but	this is now discouraged to avoid unnecessary awareness of the implementation of external storage in protocol stacks and device drivers.
 
 将 `mbuf cluster` 分配并附加到 `mbuf`。成功时，返回非零值; 从历史上看，消费者会通过测试`mbuf`上的`M_EXT`标志来检查是否成功，但现在不鼓励这样做以避免在协议栈和设备驱动程序中不必要地意识到外部存储的实现。
 
-**`M_ALIGN(mbuf, len)`**
+**`M_ALIGN(mbuf, len)`**<br>
 Set the pointer `mbuf-_m_data` to place an object of the size `len` at the end of the internal data area of `mbuf`, `long word` aligned. Applicable only if `mbuf` is newly allocated with `MGET()` or `m_get()`.
 
-**`MH_ALIGN(mbuf, len)`**
+**`MH_ALIGN(mbuf, len)`**<br>
 Serves the same purpose as `M_ALIGN()` does, but only for mbuf newly allocated with `MGETHDR()` or `m_gethdr()`, or initialized by `m_dup_pkthdr()` or `m_move_pkthdr()`.
 
-**`m_align(mbuf, len)`**
+**`m_align(mbuf, len)`**<br>
 Services the same purpose as `M_ALIGN()` but handles any type of `mbuf`.
 
-**`M_LEADINGSPACE(mbuf)`**
+**`M_LEADINGSPACE(mbuf)`**<br>
 Returns the number of bytes available before the beginning of data in `mbuf`.
 
-**`M_TRAILINGSPACE(mbuf)`**
+**`M_TRAILINGSPACE(mbuf)`**<br>
 Returns the number of bytes available after the end of data in `mbuf`.
 
-**`M_PREPEND(mbuf, len,	how)`**
+**`M_PREPEND(mbuf, len,	how)`**<br>
 This macro operates on an `mbuf chain`. It is an optimized wrapper for `m_prepend()` that can make use of possible empty space before data (e.g. left after trimming of a link-layer header). The new `mbuf chain` pointer or `NULL` is in `mbuf` after the call.
 
-**`M_MOVE_PKTHDR(to, from)`**
+**`M_MOVE_PKTHDR(to, from)`**<br>
 Using this macro is equivalent to calling `m_move_pkthdr(to, from)`.
 
-**`M_WRITABLE(mbuf)`**
+**`M_WRITABLE(mbuf)`**<br>
 This macro will evaluate true if `mbuf` is not marked `M_RDONLY` and if either `mbuf` does not contain external storage or, if it does, then if the reference count of the storage is not greater	than 1.	The `M_RDONLY` flag can be set in `mbuf-_m_flags`. This can be achieved during setup of the external storage, by passing the	`M_RDONLY` bit as a flags argument to the `MEXTADD()` macro, or can be directly set in individual `mbufs`.
 
-**`MCHTYPE(mbuf, type)`**
+**`MCHTYPE(mbuf, type)`**<br>
 Change the type of `mbuf` to type. This is a relatively expensive operation and should be avoided.
-
-
