@@ -312,3 +312,111 @@ This macro will evaluate true if `mbuf` is not marked `M_RDONLY` and if either `
 
 **`MCHTYPE(mbuf, type)`**<br>
 Change the type of `mbuf` to type. This is a relatively expensive operation and should be avoided.
+
+The functions are:
+
+**`m_get(how, type)`**<br>
+A function version of `MGET()` for non-critical paths.
+
+**`m_get2(size, how, type, flags)`**<br>
+Allocate an `mbuf` with enough space to hold specified amount of data.
+
+**`m_getm(orig, len, how, type)`**<br>
+Allocate len bytes worth of `mbufs` and `mbuf clusters` if necessary and append the resulting allocated `mbuf chain` to the `mbuf chain orig`, if it is `non-NULL`. If the allocation fails at any point, free whatever was allocated and return `NULL`. If orig is `non-NULL`, it will not be freed. It is possible to use `m_getm()` to either append len bytes to an existing `mbuf` or `mbuf chain` (for example, one which may be sitting in a pre-allocated ring) or to simply perform an all-or-nothing `mbuf` and `mbuf cluster` allocation.
+
+**`m_gethdr(how, type)`**<br>
+A function version of `MGETHDR()` for non-critical paths.
+
+**`m_getcl(how, type, flags)`**<br>
+Fetch an `mbuf` with a `mbuf cluster` attached to it. If one of the allocations fails, the entire allocation fails. This routine is the preferred way of fetching both the `mbuf` and `mbuf cluster` together, as it avoids having to `unlock/relock` between allocations. Returns `NULL` on failure.
+
+**`m_getjcl(how, type, flags, size)`**<br>
+This is like `m_getcl()` but it the size of the `cluster` allocated will be large enough for size bytes.
+
+**`m_free(mbuf)`**<br>
+Frees `mbuf`. Returns `m_next` of the freed `mbuf`.
+
+The functions below operate on `mbuf chains`.
+
+**`m_freem(mbuf)`**<br>
+Free an entire `mbuf chain`, including any external storage.
+
+**`m_adj(mbuf, len)`**<br>
+Trim len bytes from the head of an `mbuf chain` if `len` is positive, from the tail otherwise.
+
+**`m_append(mbuf, len, cp)`**<br>
+Append `len` bytes of `data` `cp` to the `mbuf chain`. Extend the `mbuf chain` if the `new data` does not fit in existing space.
+
+**`m_prepend(mbuf, len, how)`**<br>
+Allocate a new `mbuf` and prepend it to the `mbuf chain`, handle `M_PKTHDR` properly. **Note**: It does not allocate any `mbuf clusters`, so len must be less than `MLEN` or `MHLEN`, depending on the `M_PKTHDR` flag setting.
+
+**`m_copyup(mbuf, len, dstoff)`**<br>
+Similar to `m_pullup()` but copies `len` bytes of data into a new `mbuf` at `dstoff` bytes into the `mbuf`. The `dstoff` argument aligns the data and leaves room for a link layer header. Returns the new `mbuf chain` on success, and frees the `mbuf chain` and returns `NULL` on failure. **Note**: The function does not allocate `mbuf clusters`, so `len + dstoff` must be less than `MHLEN`.
+
+**`m_pullup(mbuf, len)`**<br>
+Arrange that the first `len` bytes of an `mbuf chain` are contiguous and lay in the data area of `mbuf`, so they are accessible with `mtod(mbuf, type)`. It is important to remember that this may involve reallocating some `mbufs` and moving data so all pointers referencing `data` within the old `mbuf chain` must be recalculated or made invalid. Return the new `mbuf chain` on success, `NULL` on failure (the `mbuf chain` is freed in this case). **Note**: It does not allocate any `mbuf clusters`, so `len` must be less than or equal to `MHLEN`.
+
+**`m_pulldown(mbuf, offset, len, offsetp)`**<br>
+Arrange that `len` bytes between `offset` and `offset + len` in the `mbuf chain` are contiguous and lay in the data area of `mbuf`, so they are accessible with `mtod(mbuf, type)`. `len` must be smaller than, or equal to, the size of an `mbuf cluster`. Return a pointer to an intermediate `mbuf` in the chain containing the requested region; the `offset` in the data region of the `mbuf chain` to the data contained in the returned `mbuf` is stored in `*offsetp`. If `offsetp` is `NULL`, the region may be accessed using `mtod(mbuf, type)`. If `offsetp` is `non-NULL`, the region may be accessed using `mtod(mbuf, uint8_t) + *offsetp`. The region of the `mbuf chain` between its beginning and `offset` is not modified, therefore it is safe to hold pointers to data within this region before calling `m_pulldown()`.
+
+**`m_copym(mbuf, offset, len, how)`**<br>
+Make a copy of an `mbuf chain` starting `offset` bytes from the beginning, continuing for `len` bytes. If `len` is `M_COPYALL`, copy to the end of the `mbuf chain`. **Note**: The copy is read-only, because the `mbuf clusters` are not copied, only their reference counts are incremented.
+
+**`m_copypacket(mbuf, how)`**<br>
+Copy an entire packet including header, which must be present. This is an optimized version of the common case `m_copym(mbuf, 0, M_COPYALL, how)`. **Note**: the copy is read-only, because the `mbuf clusters` are not copied, only their reference counts are incremented.
+
+**`m_dup(mbuf, how)`**<br>
+Copy a packet header `mbuf chain` into a completely new `mbuf chain`, including copying any `mbuf clusters`. Use this instead of `m_copypacket()` when you need a writable copy of an `mbuf chain`.
+
+**`m_copydata(mbuf, offset, len, buf)`**<br>
+Copy data from an `mbuf chain` starting `off` bytes from the beginning, continuing for `len` bytes, into the indicated buffer `buf`.
+
+**`m_copyback(mbuf, offset, len, buf)`**<br>
+Copy `len` bytes from the buffer `buf` back into the indicated `mbuf chain`, starting at `offset` bytes from the beginning of the `mbuf chain`, extending the `mbuf chain` if necessary. **Note**: It does not allocate any `mbuf clusters`, just adds `mbufs` to the `mbuf chain`. It is safe to set `offset` beyond the current `mbuf chain` end: zeroed `mbufs` will be allocated to fill the space.
+
+**`m_length(mbuf, last)`**<br>
+Return the length of the `mbuf chain`, and optionally a pointer to the last `mbuf`.
+
+**`m_dup_pkthdr(to, from, how)`**<br>
+Upon the function’s completion, the `mbuf` to will contain an identical copy of `from->m_pkthdr` and the per-packet attributes found in the `mbuf chain from`. The `mbuf from` must have the flag `M_PKTHDR` initially set, and to must be empty on entry.
+
+**`m_move_pkthdr(to, from)`**<br>
+Move `m_pkthdr` and the per-packet attributes from the `mbuf chain` from to the `mbuf` to. The `mbuf` from must have the flag `M_PKTHDR` initially set, and to must be empty on entry. Upon the function’s completion, from will have the flag `M_PKTHDR` and the per-packet attributes cleared.
+
+**`m_fixhdr(mbuf)`**<br>
+Set the packet-header length to the length of the `mbuf chain`.
+
+**`m_devget(buf, len, offset, ifp, copy)`**<br>
+Copy data from a device local memory pointed to by `buf` to an `mbuf chain`. The copy is done using a specified copy routine copy, or `bcopy()` if copy is `NULL`.
+
+**`m_cat(m, n)`**<br>
+Concatenate `n` to `m`. Both `mbuf chains` must be of the same type. `n` is not guaranteed to be valid after `m_cat()` returns. `m_cat()` does not update any packet header fields or free `mbuf` tags.
+
+**`m_catpkt(m, n)`**<br>
+A variant of `m_cat()` that operates on packets. Both `m` and `n` must contain packet headers. `n` is not guaranteed to be valid after `m_catpkt()` returns.
+
+**`m_split(mbuf, len, how)`**<br>
+Partition an `mbuf chain` in two pieces, returning the tail: all but the first `len` bytes. In case of failure, it returns `NULL` and attempts to restore the `mbuf chain` to its original state.
+
+**`m_apply(mbuf, off, len, f, arg)`**<br>
+Apply a function to an `mbuf chain`, at offset `off`, for length `len` bytes. Typically used to avoid calls to `m_pullup()` which would otherwise be unnecessary or undesirable. `arg` is a convenience argument which is passed to the callback function `f`.
+
+Each time `f()` is called, it will be passed `arg`, a pointer to the data in the current `mbuf`, and the length `len` of the data in this `mbuf` to which the function should be applied.
+
+The function should return zero to indicate success; otherwise, if an error is indicated, then `m_apply()` will return the error and stop iterating through the `mbuf chain`.
+
+**`m_getptr(mbuf, loc, off)`**<br>
+Return a pointer to the `mbuf` containing the data located at `loc` bytes from the beginning of the `mbuf chain`. The corresponding offset into the `mbuf` will be stored in `*off`.
+
+**`m_defrag(m0, how)`**<br>
+Defragment an `mbuf chain`, returning the shortest possible chain of `mbufs` and `clusters`. If allocation fails and this can not be completed, `NULL` will be returned and the original chain will be unchanged. Upon success, the original chain will be freed and the new chain will be returned. how should be either `M_WAITOK` or `M_NOWAIT`, depending on the caller’s preference.
+
+This function is especially useful in network drivers, where certain long `mbuf chains` must be shortened before being added to `TX descriptor` lists.
+
+**`m_collapse(m0, how, maxfrags)`**<br>
+Defragment an `mbuf chain`, returning a chain of at most maxfrags `mbufs` and `clusters`. If allocation fails or the chain cannot be collapsed as requested, `NULL` will be returned, with the original chain possibly modified. As with `m_defrag()`, how should be one of `M_WAITOK` or `M_NOWAIT`.
+
+**`m_unshare(m0, how)`**<br>
+Create a version of the specified `mbuf chain` whose contents can be safely modified without affecting other users. If allocation fails and this operation can not be completed, `NULL` will be returned. The original `mbuf chain` is always reclaimed and the reference count of any shared `mbuf clusters` is decremented. how should be either `M_WAITOK` or `M_NOWAIT`, depending on the caller’s preference. As a side-effect of this process the returned `mbuf chain` may be compacted.
+
+This function is especially useful in the transmit path of network code, when data must be encrypted or otherwise altered prior to transmission.
