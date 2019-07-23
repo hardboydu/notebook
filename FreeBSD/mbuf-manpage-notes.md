@@ -262,7 +262,7 @@ The system also supplies a default type of external storage buffer called an `mb
 There are numerous predefined macros and functions that provide the developer with common utilities.
 
 * **`mtod(mbuf, type)`**<br>
-Convert an `mbuf` pointer to a `data` pointer. The macro expands to the data pointer cast to the specified type. **Note:** It is advisable to ensure that there is enough contiguous data in `mbuf`. See `m_pullup()` for details. <br>
+Convert an `mbuf` pointer to a `data` pointer. The macro expands to the data pointer cast to the specified type. **Note:** It is advisable to ensure that there is enough contiguous data in `mbuf`. See `m_pullup()` for details. <br><br>
 将`mbuf`指针转换为`data`指针。宏扩展为转换为指定类型的数据指针。注意：建议确保`mbuf`中有足够的连续数据。有关详细信息，请参阅 `m_pullup()`。
 
 * **`MGET(mbuf, how, type)`**<br>
