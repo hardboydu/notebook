@@ -266,19 +266,19 @@ Convert an `mbuf` pointer to a `data` pointer. The macro expands to the data poi
 将`mbuf`指针转换为`data`指针。宏扩展为转换为指定类型的数据指针。注意：建议确保`mbuf`中有足够的连续数据。有关详细信息，请参阅 `m_pullup()`。
 
 * **`MGET(mbuf, how, type)`**<br>
-Allocate an `mbuf` and initialize it to contain internal data. `mbuf` will point to the allocated `mbuf` on success, or be set to `NULL` on failure. The how argument is to be set to `M_WAITOK` or `M_NOWAIT`. It specifies whether the caller is willing to block if necessary. A number of other functions and macros related to mbufs have the same argument because they may at some point need to allocate new `mbufs`. <br>
+Allocate an `mbuf` and initialize it to contain internal data. `mbuf` will point to the allocated `mbuf` on success, or be set to `NULL` on failure. The how argument is to be set to `M_WAITOK` or `M_NOWAIT`. It specifies whether the caller is willing to block if necessary. A number of other functions and macros related to mbufs have the same argument because they may at some point need to allocate new `mbufs`. <br><br>
 分配一个`mbuf`并初始化它以包含内部数据。`mbuf`将指向成功时分配的`mbuf`，或者在失败时设置为`NULL`。如何将参数设置为`M_WAITOK`或`M_NOWAIT`。它指定调用者是否愿意在必要时阻止。与`mbuf` 相关的许多其他函数和宏具有相同的参数，因为它们可能在某些时候需要分配新的 `mbufs`。
 
 * **`MGETHDR(mbuf, how, type)`**<br>
-Allocate an `mbuf` and initialize it to contain a packet header and internal data.  See `MGET()` for details.<br>
+Allocate an `mbuf` and initialize it to contain a packet header and internal data.  See `MGET()` for details.<br><br>
 分配一个`mbuf`并初始化它以包含一个包头和内部数据。 有关详细信息，请参阅`MGET()`。
 
 * **`MEXTADD(mbuf, buf, size, free, opt_arg1, opt_arg2, flags, type)`**<br>
-Associate externally managed data with `mbuf`. Any internal data contained in the `mbuf` will be discarded, and the `M_EXT` flag will be set. The `buf` and `size` arguments are the address and length, respectively, of the data. The `free` argument points to a function which will be called to free the data when the `mbuf` is freed; it is only used if type is `EXT_EXTREF`. The `opt_arg1` and `opt_arg2` arguments will be saved in `ext_arg1` and `ext_arg2` fields of the `struct m_ext` of the `mbuf`. The `flags` argument specifies additional `mbuf` flags; it is not necessary to specify `M_EXT`. Finally, the `type` argument specifies the type of external data, which controls how it will be disposed of when the `mbuf` is freed. In most cases, the correct value is `EXT_EXTREF`.<br>
+Associate externally managed data with `mbuf`. Any internal data contained in the `mbuf` will be discarded, and the `M_EXT` flag will be set. The `buf` and `size` arguments are the address and length, respectively, of the data. The `free` argument points to a function which will be called to free the data when the `mbuf` is freed; it is only used if type is `EXT_EXTREF`. The `opt_arg1` and `opt_arg2` arguments will be saved in `ext_arg1` and `ext_arg2` fields of the `struct m_ext` of the `mbuf`. The `flags` argument specifies additional `mbuf` flags; it is not necessary to specify `M_EXT`. Finally, the `type` argument specifies the type of external data, which controls how it will be disposed of when the `mbuf` is freed. In most cases, the correct value is `EXT_EXTREF`.<br><br>
 将外部管理的数据与`mbuf`相关联。`mbuf`中包含的任何内部数据都将被丢弃，并且将设置`M_EXT`标志。`buf`和`size`参数分别是数据的地址和长度。`free`参数指向一个函数，当`mbuf`被释放时，该函数将被调用以释放数据; 它仅在类型为`EXT_EXTREF`时使用。`opt_arg1`和`opt_arg2`参数将保存在`mbuf`的`struct m_ext`的`ext_arg1`和`ext_arg2`字段中。`flags`参数指定了额外的`mbuf`标志; 没有必要指定`M_EXT`。最后，`type` 参数指定外部数据的类型，它控制在释放`mbuf`时如何处理它。在大多数情况下，正确的值是 `EXT_EXTREF`。
 
 * **`MCLGET(mbuf, how)`**<br>
-Allocate and attach an `mbuf cluster` to `mbuf`. On success, a nonzero value returned; otherwise, 0. Historically, consumers would check for success by testing the `M_EXT` flag on the `mbuf`, but	this is now discouraged to avoid unnecessary awareness of the implementation of external storage in protocol stacks and device drivers.<br>
+Allocate and attach an `mbuf cluster` to `mbuf`. On success, a nonzero value returned; otherwise, 0. Historically, consumers would check for success by testing the `M_EXT` flag on the `mbuf`, but	this is now discouraged to avoid unnecessary awareness of the implementation of external storage in protocol stacks and device drivers.<br><br>
 将 `mbuf cluster` 分配并附加到 `mbuf`。成功时，返回非零值; 从历史上看，消费者会通过测试`mbuf`上的`M_EXT`标志来检查是否成功，但现在不鼓励这样做以避免在协议栈和设备驱动程序中不必要地意识到外部存储的实现。
 
 * **`M_ALIGN(mbuf, len)`**<br>
@@ -394,20 +394,20 @@ A variant of `m_cat()` that operates on packets. Both `m` and `n` must contain p
 Partition an `mbuf chain` in two pieces, returning the tail: all but the first `len` bytes. In case of failure, it returns `NULL` and attempts to restore the `mbuf chain` to its original state.
 
 * **`m_apply(mbuf, off, len, f, arg)`**<br>
-Apply a function to an `mbuf chain`, at offset `off`, for length `len` bytes. Typically used to avoid calls to `m_pullup()` which would otherwise be unnecessary or undesirable. `arg` is a convenience argument which is passed to the callback function `f`.<br>
-Each time `f()` is called, it will be passed `arg`, a pointer to the data in the current `mbuf`, and the length `len` of the data in this `mbuf` to which the function should be applied.<br>
+Apply a function to an `mbuf chain`, at offset `off`, for length `len` bytes. Typically used to avoid calls to `m_pullup()` which would otherwise be unnecessary or undesirable. `arg` is a convenience argument which is passed to the callback function `f`.<br><br>
+Each time `f()` is called, it will be passed `arg`, a pointer to the data in the current `mbuf`, and the length `len` of the data in this `mbuf` to which the function should be applied.<br><br>
 The function should return zero to indicate success; otherwise, if an error is indicated, then `m_apply()` will return the error and stop iterating through the `mbuf chain`.
 
 * **`m_getptr(mbuf, loc, off)`**<br>
 Return a pointer to the `mbuf` containing the data located at `loc` bytes from the beginning of the `mbuf chain`. The corresponding offset into the `mbuf` will be stored in `*off`.
 
 * **`m_defrag(m0, how)`**<br>
-Defragment an `mbuf chain`, returning the shortest possible chain of `mbufs` and `clusters`. If allocation fails and this can not be completed, `NULL` will be returned and the original chain will be unchanged. Upon success, the original chain will be freed and the new chain will be returned. how should be either `M_WAITOK` or `M_NOWAIT`, depending on the caller’s preference.<br>
+Defragment an `mbuf chain`, returning the shortest possible chain of `mbufs` and `clusters`. If allocation fails and this can not be completed, `NULL` will be returned and the original chain will be unchanged. Upon success, the original chain will be freed and the new chain will be returned. how should be either `M_WAITOK` or `M_NOWAIT`, depending on the caller’s preference.<br><br>
 This function is especially useful in network drivers, where certain long `mbuf chains` must be shortened before being added to `TX descriptor` lists.
 
 * **`m_collapse(m0, how, maxfrags)`**<br>
 Defragment an `mbuf chain`, returning a chain of at most maxfrags `mbufs` and `clusters`. If allocation fails or the chain cannot be collapsed as requested, `NULL` will be returned, with the original chain possibly modified. As with `m_defrag()`, how should be one of `M_WAITOK` or `M_NOWAIT`.
 
 * **`m_unshare(m0, how)`**<br>
-Create a version of the specified `mbuf chain` whose contents can be safely modified without affecting other users. If allocation fails and this operation can not be completed, `NULL` will be returned. The original `mbuf chain` is always reclaimed and the reference count of any shared `mbuf clusters` is decremented. how should be either `M_WAITOK` or `M_NOWAIT`, depending on the caller’s preference. As a side-effect of this process the returned `mbuf chain` may be compacted. <br>
+Create a version of the specified `mbuf chain` whose contents can be safely modified without affecting other users. If allocation fails and this operation can not be completed, `NULL` will be returned. The original `mbuf chain` is always reclaimed and the reference count of any shared `mbuf clusters` is decremented. how should be either `M_WAITOK` or `M_NOWAIT`, depending on the caller’s preference. As a side-effect of this process the returned `mbuf chain` may be compacted. <br><br>
 This function is especially useful in the transmit path of network code, when data must be encrypted or otherwise altered prior to transmission.
