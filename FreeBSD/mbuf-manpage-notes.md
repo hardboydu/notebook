@@ -411,3 +411,61 @@ Defragment an `mbuf chain`, returning a chain of at most maxfrags `mbufs` and `c
 * **`m_unshare(m0, how)`**<br>
 Create a version of the specified `mbuf chain` whose contents can be safely modified without affecting other users. If allocation fails and this operation can not be completed, `NULL` will be returned. The original `mbuf chain` is always reclaimed and the reference count of any shared `mbuf clusters` is decremented. how should be either `M_WAITOK` or `M_NOWAIT`, depending on the caller’s preference. As a side-effect of this process the returned `mbuf chain` may be compacted. <br><br>
 This function is especially useful in the transmit path of network code, when data must be encrypted or otherwise altered prior to transmission.
+
+## HARDWARE-ASSISTED CHECKSUM CALCULATION
+
+This section currently applies to TCP/IP only. In order to save the host CPU resources, computing checksums is offloaded to the network interface hardware if possible. The m_pkthdr member of the leading mbuf of a packet contains two fields used for that purpose, int csum_flags and int csum_data. The meaning of those fields depends on the direction a packet flows in, and on whether the packet is fragmented. Henceforth, csum_flags or csum_data of a packet will denote the corresponding field of the m_pkthdr member of the leading mbuf in the mbuf chain containing the packet.
+
+On output, checksum offloading is attempted after the outgoing interface has been determined for a packet. The interface-specific field ifnet.if_data.ifi_hwassist (see ifnet(9)) is consulted for the capabilities of the interface to assist in computing checksums. The csum_flags field of the packet header is set to indicate which actions the interface is supposed to perform on it. The actions unsupported by the network interface are done in the software prior to passing the packet down to the interface driver; such actions will never be requested through csum_flags.
+
+The flags demanding a particular action from an interface are as follows:
+
+|||
+|-|-
+|`CSUM_IP`  |The IP header checksum is to be computed and stored in the corresponding field of the packet. The hardware is expected to know the format of an IP header to determine the offset of the IP checksum field.
+|`CSUM_TCP` |The TCP checksum is to be computed. (See below.)
+|`CSUM_UDP` |The UDP checksum is to be computed. (See below.)
+
+Should a TCP or UDP checksum be offloaded to the hardware, the field csum_data will contain the byte offset of the checksum field relative to the end of the IP header. In this case, the checksum field will be initially set by the TCP/IP module to the checksum of the pseudo header defined by the TCP and UDP specifications.
+
+On input, an interface indicates the actions it has performed on a packet by setting one or more of the following flags in csum_flags associated with the packet:
+
+|||
+|-|-|
+|`CSUM_IP_CHECKED`| The IP header checksum has been computed.
+|`CSUM_IP_VALID`| The IP header has a valid checksum. This flag can appear only in combination with CSUM_IP_CHECKED.
+|`CSUM_DATA_VALID` |The checksum of the data portion of the IP packet has been computed and stored in the field csum_data in network byte order.
+|`CSUM_PSEUDO_HDR` |Can be set only along with CSUM_DATA_VALID to indicate that the IP data checksum found in csum_data allows for the pseudo header defined by the TCP and UDP specifications. Otherwise the checksum of the pseudo header must be calculated by the host CPU and added to csum_data to obtain the final checksum to be used for TCP or UDP validation purposes.
+
+If a particular network interface just indicates success or failure of TCP or UDP checksum validation without returning the exact value of the checksum to the host CPU, its driver can mark CSUM_DATA_VALID and CSUM_PSEUDO_HDR in csum_flags, and set csum_data to 0xFFFF hexadecimal to indicate a valid checksum. It is a peculiarity of the algorithm used that the Internet checksum calculated over any valid packet will be 0xFFFF as long as the original checksum field is included.
+
+## STRESS TESTING
+
+When running a kernel compiled with the option MBUF_STRESS_TEST, the following sysctl(8)-controlled options may be used to create various failure/extreme cases for testing of network drivers and other parts of the kernel that rely on mbufs.
+
+* `net.inet.ip.mbuf_frag_size` <br>
+Causes ip_output() to fragment outgoing mbuf chains into fragments of the specified size. Setting this variable to 1 is an excellent way to test the long mbuf chain handling ability of network drivers.
+
+* `kern.ipc.m_defragrandomfailures` <br>
+Causes the function m_defrag() to randomly fail, returning NULL. Any piece of code which uses m_defrag() should be tested with this feature.
+
+## RETURN VALUES
+
+See above.
+
+## SEE ALSO
+
+`ifnet(9)`, `mbuf_tags(9)`
+
+## HISTORY
+
+Mbufs appeared in an early version of BSD. Besides being used for network packets, they were used to store various dynamic structures, such as routing table entries, interface addresses, protocol control blocks, etc. In more recent FreeBSD use of mbufs is almost entirely limited to packet storage, with uma(9) zones being used directly to store other network-related memory.
+
+Historically, the mbuf allocator has been a special-purpose memory allocator able to run in interrupt contexts and allocating from a special kernel address space map. As of FreeBSD 5.3, the mbuf allocator is a wrapper around uma(9), allowing caching of mbufs, clusters, and mbuf + cluster pairs in per-CPU caches, as well as bringing other benefits of slab allocation.
+
+## AUTHORS
+
+The original mbuf manual page was written by Yar Tikhiy. The uma(9) mbuf allocator was written by 
+Bosko Milekic.
+
+BSD September 27, 2017 BSD
