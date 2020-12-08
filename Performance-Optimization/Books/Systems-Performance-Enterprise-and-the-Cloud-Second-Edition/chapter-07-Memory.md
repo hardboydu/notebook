@@ -269,3 +269,224 @@ Example DDR SDRAM standards are shown in Table 7.1.
 
 
 The DDR5 standard is expected to be released during 2020 by the JEDEC Solid State Technology Association. These standards are also named using “PC-” followed by the data transfer rate in megabytes per second, for example, PC-1600.
+
+#### Multichannel
+
+System architectures may support the use of multiple memory buses in parallel, to improve bandwidth. Common multiples are dual-, triple-, and quad-channel. For example, the Intel Core i7 processors support up to quad-channel DDR3-1600, for a maximum memory bandwidth of 51.2 Gbytes/s.
+
+#### CPU Caches
+
+Processors typically include on-chip hardware caches to improve memory access performance. The caches may include the following levels, of decreasing speed and increasing size:
+
+* **Level 1**: Usually split into a separate instruction cache and data cache
+* **Level 2**: A cache for both instructions and data
+* **Level 3**: Another larger level of cache
+
+Depending on the processor, Level 1 is typically referenced by virtual memory addresses, and Level 2 onward by physical memory addresses.
+
+These caches were discussed in more depth in Chapter 6, CPUs. An additional type of hardware cache, the TLB, is discussed in this chapter.
+
+#### MMU
+
+The MMU (memory management unit) is responsible for virtual-to-physical address translations. These are performed per page, and offsets within a page are mapped directly. The MMU was introduced in Chapter 6, CPUs, in the context of nearby CPU caches.
+
+A generic MMU is pictured in Figure 7.5, with levels of CPU caches and main memory.
+
+![Figure 7.5 Memory management unit](./chapter-07/07-05.png)
+*Figure 7.5 Memory management unit*
+
+#### Multiple Page Sizes
+
+Modern processors support multiple page sizes, which allow different page sizes (e.g., 4 Kbytes, 2 Mbytes, 1 Gbyte) to be used by the operating system and the MMU. The Linux huge pages feature supports larger page sizes, such as 2 Mbytes or 1 Gbyte.
+
+#### TLB
+
+The MMU pictured in Figure 7.5 uses a TLB (translation lookaside buffer) as the first level of address translation cache, followed by the page tables in main memory. The TLB may be divided into separate caches for instruction and data pages.
+
+Because the TLB has a limited number of entries for mappings, the use of larger page sizes increases the range of memory that can be translated from its cache (its reach), which reduces TLB misses and improves system performance. The TLB may be further divided into separate caches for each of these page sizes, improving the probability of retaining larger mappings in cache.
+
+As an example of TLB sizes, a typical Intel Core i7 processor provides the four TLBs shown in Table 7.2 [Intel 19a].
+
+*Table 7.2 TLBs for a typical Intel Core i7 processor*
+
+|Type|Page Size|Entries|
+|----|---------|-------|
+|Instruction|4 K|64 per thread, 128 per core|
+|Instruction|large|7 per thread|
+|Data|4 K|64|
+|Data|large|32|
+
+This processor has one level of data TLB. The Intel Core microarchitecture supports two levels, similar to the way CPUs provide multiple levels of main memory cache.
+
+The exact makeup of the TLB is specific to the processor type. Refer to the vendor processor manuals for details on the TLBs in your processor and further information on their operation.
+
+### 7.3.2 Software
+
+Software for memory management includes the virtual memory system, address translation, swapping, paging, and allocation. The topics most related to performance are included in this section: freeing memory, the free list, page scanning, swapping, the process address space, and memory allocators.
+
+#### Freeing Memory
+
+When the available memory on the system becomes low, there are various methods that the kernel can use to free up memory, adding it to the free list of pages. These methods are pictured in Figure 7.6 for Linux, in the general order in which they are used as available memory decreases.
+
+![Figure 7.6 Linux memory availability management](./chapter-07/07-06.png)
+*Figure 7.6 Linux memory availability management*
+
+These methods are:
+
+* **Free list**: A list of pages that are unused (also called idle memory) and available for immediate allocation. This is usually implemented as multiple free page lists, one for each locality group (NUMA).
+* **Page cache**: The file system cache. A tunable parameter called swappiness sets the degree to which the system should favor freeing memory from the page cache instead of swapping.
+* **Swapping**: This is paging by the page-out daemon, kswapd, which finds not recently used pages to add to the free list, including application memory. These are paged out, which may involve writing to either a file system-based swap file or a swap device. Naturally, this is available only if a swap file or device has been configured.
+* **Reaping**: When a low-memory threshold is crossed, kernel modules and the kernel slab allocator can be instructed to immediately free any memory that can easily be freed. This is also known as shrinking.
+* **OOM killer**: The out-of-memory killer will free memory by finding and killing a sacrificial process, found using select_bad_process() and then killed by calling oom_kill_process(). This may be logged in the system log (/var/log/messages) as an “Out of memory: Kill process” message.
+
+The Linux swappiness parameter controls whether to favor freeing memory by paging applications or by reclaiming it from the page cache. It is a number between 0 and 100 (the default value is 60), where higher values favor freeing memory by paging. Controlling the balance between these memory freeing techniques allows system throughput to be improved by preserving warm file system cache while paging out cold application memory [Corbet 04].
+
+It is also interesting to ask what happens if no swap device or swap file is configured. This limits virtual memory size, so if overcommit has been disabled, memory allocations will fail sooner. On Linux, this may also mean that the OOM killer is used sooner.
+
+Consider an application with an issue of endless memory growth. With swap, this is likely to first become a performance issue due to paging, which is an opportunity to debug the issue live. Without swap, there is no paging grace period, so either the application hits an “Out of memory” error or the OOM killer terminates it. This may delay debugging the issue if it is seen only after hours of usage.
+
+In the Netflix cloud, instances typically do not use swap, so applications are OOM killed if they exhaust memory. Applications are distributed across a large pool of instances, and having one OOM killed causes traffic to be immediately redirected to other healthy instances. This is considered preferable to allowing one instance to run slowly due to swapping.
+
+When memory cgroups are used, similar memory freeing techniques can be used as those shown in Figure 7.6 to manage cgroup memory. A system may have an abundance of free memory, but is swapping or encountering the OOM killer because a container has exhausted its cgroup-controlled limit [Evans 17]. For more on cgroups and containers, see Chapter 11, Cloud Computing.
+
+The following sections describe free lists, reaping, and the page-out daemon.
+
+#### Free List(s)
+
+The original Unix memory allocator used a memory map and a first-fit scan. With the introduction of paged virtual memory in BSD, a free list and a page-out daemon were added [Babaoglu 79]. The free list, pictured in Figure 7.7, allows available memory to be located immediately.
+
+![Figure 7.7 Free list operations](./chapter-07/07-07.png)
+*Figure 7.7 Free list operations*
+
+Memory freed is added to the head of the list for future allocations. Memory that is freed by the page-out daemon—and that may still contain useful cached file system pages—is added to the tail. Should a future request for one of these pages occur before the useful page has been reused, it can be reclaimed and removed from the free list.
+
+A form of free list is still in use by Linux-based systems, as pictured in Figure 7.6. Free lists are typically consumed via allocators, such as the slab allocator for the kernel, and libc malloc() for user-space (which has its own free lists). These in turn consume pages and then expose them via their allocator API.
+
+Linux uses the buddy allocator for managing pages. This provides multiple free lists for different- sized memory allocations, following a power-of-two scheme. The term buddy refers to finding neighboring pages of free memory so that they can be allocated together. For historical background, see [Peterson 77].
+
+The buddy free lists are at the bottom of the following hierarchy, beginning with the per-memory node pg_data_t:
+
+* Nodes: Banks of memory, NUMA-aware
+* Zones: Ranges of memory for certain purposes (direct memory access [DMA],4 normal, highmem)
+>> <sup>4</sup>Although ZONE_DMA may be removed [Corbet 18a].
+
+* Migration types: Unmovable, reclaimable, movable, etc.
+* Sizes: Power-of-two number of pages
+
+Allocating within the node free lists improves memory locality and performance. For the most common allocation, single pages, the buddy allocator keeps lists of single pages for each CPU to reduce CPU lock contention.
+
+#### Reaping
+
+Reaping mostly involves freeing memory from the kernel slab allocator caches. These caches contain unused memory in slab-size chunks, ready for reuse. Reaping returns this memory to the system for page allocations.
+
+On Linux, kernel modules can also call register_shrinker() to register specific functions for reaping their own memory.
+
+#### Page Scanning
+
+Freeing memory by paging is managed by the kernel page-out daemon. When available main memory in the free list drops below a threshold, the page-out daemon begins page scanning. Page scanning occurs only when needed. A normally balanced system may not page scan very often and may do so only in short bursts.
+
+On Linux, the page-out daemon is called kswapd, which scans LRU page lists of inactive and active memory to free pages. It is woken up based on free memory and two thresholds to provide hysteresis, as shown in Figure 7.8.
+
+![Figure 7.8 kswapd wake-ups and modes](./chapter-07/07-08.png)
+*Figure 7.8 kswapd wake-ups and modes*
+
+Once free memory has reached the lowest threshold, kswapd runs in the foreground, synchronously freeing pages of memory as they are requested, a method sometimes known as direct-reclaim [Gorman 04]. This lowest threshold is tunable (vm.min_free_kbytes), and the others are scaled based on it (by 2x for low, 3x for high). For workloads with high allocation bursts that outpace kswap reclamation, Linux provides additional tunables for more aggressive scanning, vm.watermark_scale_factor and vm.watermark_boost_factor: see Section 7.6.1, Tunable Parameters.
+
+The page cache has separate lists for inactive pages and active pages. These operate in an LRU fashion, allowing kswapd to find free pages quickly. They are shown in Figure 7.9.
+
+![Figure 7.9 kswapd lists](./chapter-07/07-09.png)
+*Figure 7.9 kswapd lists*
+
+kswapd scans the inactive list first, and then the active list, if needed. The term scanning refers to checking of pages as the list is walked: a page may be ineligible to be freed if it is locked/dirty. The term scanning as used by kswapd has a different meaning than the scanning done by the original UNIX page-out daemon, which scans all of memory.
+
+### 7.3.3 Process Virtual Address Space
+
+Managed by both hardware and software, the process virtual address space is a range of virtual pages that are mapped to physical pages as needed. The addresses are split into areas called segments for storing the thread stacks, process executable, libraries, and heap. Examples for 32-bit processes on Linux are shown in Figure 7.10, for both x86 and SPARC processors.
+
+![Figure 7.10 Example process virtual memory address space](./chapter-07/07-10.png)
+*Figure 7.10 Example process virtual memory address space*
+
+On SPARC the kernel resides in a separate full address space (which is not shown in Figure 7.10). Note that on SPARC it is not possible to distinguish between a user and kernel address based only on the pointer value; x86 employs a different scheme where the user and kernel addresses are non-overlapping.<sup>5</sup>
+
+> <sup>5</sup>Note that for 64-bit addresses, the full 64-bit range may not be supported by the processor: the AMD specification allows implementations to only support 48-bit addresses, where the unused higher-order bits are set to the last bit: this creates two usable address ranges, called canonical address, of 0 to `0x00007fffffffffff`, used for user space, and `0xffff800000000000` to `0xffffffffffffffff`, used for kernel space. This is why x86 kernel addresses begin with `0xffff`.
+
+The program executable segment contains separate text and data segments. Libraries are also composed of separate executable text and data segments. These different segment types are:
+
+* **Executable text**: Contains the executable CPU instructions for the process. This is mapped from the text segment of the binary program on the file system. It is read-only with the execute permission.
+* **Executable data**: Contains initialized variables mapped from the data segment of the binary program. This has read/write permissions so that the variables can be modified while the program is running. It also has a private flag so that modifications are not flushed to disk.
+* **Heap**: This is the working memory for the program and is anonymous memory (no file system location). It grows as needed and is allocated via malloc(3).
+* **Stack**: Stacks of the running threads, mapped read/write.
+
+The library text segments may be shared by other processes that use the same library, each of which has a private copy of the library data segment.
+
+#### Heap Growth
+
+A common source of confusion is the endless growth of heap. Is it a memory leak? For simple allocators, a free(3) does not return memory to the operating system; rather, memory is kept to serve future allocations. This means that the process resident memory can only grow, which is normal. Methods for processes to reduce system memory use include:
+
+* **Re-exec**: Calling execve(2) to begin from an empty address space
+* **Memory mapping**: Using mmap(2) and munmap(2), which will return memory to the system
+
+Memory-mapped files are described in Chapter 8, File Systems, Section 8.3.10, Memory-Mapped Files.
+
+Glibc, commonly used on Linux, is an advanced allocator that supports an mmap mode of operation, as well as a malloc_trim(3) function to release free memory to the system. malloc_trim(3) is automatically called by free(3) when the top-of-heap free memory becomes large,<sup>6</sup> and frees it using sbrk(2) syscalls.
+
+> <sup>6</sup>Larger than the `M_TRIM_THRESHOLD` `mallopt(3)` parameter, which is 128 Kbytes by default.
+
+#### Allocators
+
+There are a variety of user- and kernel-level allocators for memory allocation. Figure 7.11 shows the role of allocators, including some common types.
+
+![Figure 7.11 User- and kernel-level memory allocators](./chapter-07/07-11.png)
+*Figure 7.11 User- and kernel-level memory allocators*
+
+Page management was described earlier in Section 7.3.2, Software, under Free List(s).
+
+Memory allocator features can include:
+
+* **Simple API**: For example, malloc(3), free(3).
+* **Efficient memory usage**: When servicing memory allocations of a variety of sizes, memory usage can become fragmented, where there are many unused regions that waste memory. Allocators can strive to coalesce the unused regions, so that larger allocations can make use of them, improving efficiency.
+* **Performance**: Memory allocations can be frequent, and on multithreaded environments they can perform poorly due to contention for synchronization primitives. Allocators can be designed to use locks sparingly, and can also make use of per-thread or per-CPU caches to improve memory locality.
+* **Observability**: An allocator may provide statistics and debug modes to show how it is being used, and which code paths are responsible for allocations.
+
+The sections that follow describe kernel-level allocators—slab and SLUB—and user-level allocators—glibc, TCMalloc, and jemalloc.
+
+#### Slab
+
+The kernel slab allocator manages caches of objects of a specific size, allowing them to be recycled quickly without the overhead of page allocation. This is especially effective for kernel allocations, which are frequently for fixed-size structs.
+
+As a kernel example, the following two lines are from ZFS `arc.c`<sup>7</sup>:
+
+> <sup>7</sup>The only reason these came to mind as examples is because I developed the code.
+
+```c
+    df = kmem_alloc(sizeof (l2arc_data_free_t), KM_SLEEP);
+    head = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
+```
+
+The first, kmem_alloc(), shows a traditional-style kernel allocation whose size is passed as an argument. The kernel maps this to a slab cache based on that size (very large sizes are handled differently, by an oversize arena). The second, kmem_cache_alloc(), operates directly on a custom slab allocator cache, in this case (kmem_cache_t *)hdr_cache.
+
+Developed for Solaris 2.4 [Bonwick 94], the slab allocator was later enhanced with per-CPU caches called magazines [Bonwick 01]:
+
+Our basic approach is to give each CPU an M-element cache of objects called a magazine, by analogy with automatic weapons. Each CPU’s magazine can satisfy M allocations before the CPU needs to reload—that is, exchange its empty magazine for a full one.
+
+Apart from high performance, the original slab allocator featured debug and analysis facilities including auditing to trace allocation details and stack traces.
+
+Slab allocation has been adopted by various operating systems. BSD has a kernel slab allocator called the universal memory allocator (UMA), which is efficient and NUMA-aware. A slab allocator was also introduced to Linux in version 2.2, where it was the default option for many years. Linux has since moved to SLUB as an option or as the default.
+
+#### SLUB
+
+The Linux kernel SLUB allocator is based on the slab allocator and is designed to address various concerns, especially regarding the complexity of the slab allocator. Improvements include the removal of object queues, and per-CPU caches—leaving NUMA optimization to the page allocator (see the earlier Free List(s) section).
+
+The SLUB allocator was made the default option in Linux 2.6.23 [Lameter 07].
+
+#### glibc
+
+The user-level GNU libc allocator is based on dlmalloc by Doug Lea. Its behavior depends on the allocation request size. Small allocations are served from bins of memory, containing units of a similar size, which can be coalesced using a buddy-like algorithm. Larger allocations can use a tree lookup to find space efficiently. Very large allocations switch to using mmap(2). The net result is a high-performing allocator that benefits from multiple allocation policies.
+
+#### TCMalloc
+
+TCMalloc is the user-level thread caching malloc, which uses a per-thread cache for small allocations, reducing lock contention and improving performance [Ghemawat 07]. Periodic garbage collection migrates memory back to a central heap for allocations.
+
+#### jemalloc
+
+Originating as the FreeBSD user-level libc allocator, libjemalloc is also available for Linux. It uses techniques such as multiple arenas, per-thread caching, and small object slabs to improve scalability and reduce memory fragmentation. It can use both mmap(2) and sbrk(2) to obtain system memory, preferring mmap(2). Facebook use jemalloc and have added profiling and other optimizations [Facebook 11].
