@@ -66,7 +66,7 @@ Virtual memory is an abstraction that provides each process and the kernel with 
 Figure 7.1 shows the role of virtual memory for a process, on a system with a swap device (secondary storage). A page of memory is shown, as most virtual memory implementations are page-based.
 
 ![Figure 7.1 Process virtual memory](./chapter-07/07-01.png)
-<center>Figure 7.1 Process virtual memory</center>
+<p align="center">Figure 7.1 Process virtual memory</p>
 
 The process address space is mapped by the virtual memory subsystem to main memory and the physical swap device. Pages of memory can be moved between them by the kernel as needed, a process Linux calls swapping (and other OSes call anonymous paging). This allows the kernel to oversubscribe main memory.
 
@@ -109,7 +109,7 @@ Performance is best when there is no anonymous paging (swapping). This can be ac
 Operating systems that support demand paging (most do) map pages of virtual memory to physical memory on demand, as shown in Figure 7.2. This defers the CPU overhead of creating the mappings until they are actually needed and accessed, instead of at the time a range of memory is first allocated.
 
 ![Figure 7.2 Page fault example](./chapter-07/07-02.png)
-<center>Figure 7.2 Page fault example</center>
+<p align="center">Figure 7.2 Page fault example</p>
 
 The sequence shown in Figure 7.2 begins with a malloc() (step 1) that provides allocated memory, and then a store instruction (step 2) to that newly allocated memory. For the MMU to determine the main memory location of the store, it performs a virtual to physical lookup (step 3) for the page of memory, which fails as there is not yet a mapping. This failure is termed a page fault (step 4), which triggers the kernel to create an on-demand mapping (step 5). Sometime later, the page of memory could be paged out to the swap devices to free up memory (step 6).
 
@@ -224,14 +224,14 @@ The access time of main memory can be measured as the column address strobe (CAS
 An example main memory architecture for a generic two-processor uniform memory access (UMA) system is shown in Figure 7.3.
 
 ![Figure 7.3 Example UMA main memory architecture, two-processor](./chapter-07/07-03.png)
-*<center>Figure 7.3 Example UMA main memory architecture, two-processor</center>*
+<p align="center">Figure 7.3 Example UMA main memory architecture, two-processor</p>
 
 Each CPU has uniform access latency to all of memory, via a shared system bus. When managed by a single operating system kernel instance that runs uniformly across all processors, this is also a symmetric multiprocessing (SMP) architecture.
 
 For comparison, an example two-processor non-uniform memory access (NUMA) system is shown in Figure 7.4, which uses a CPU interconnect that becomes part of the memory architecture. For this architecture, the access time for main memory varies based on its location relative to the CPU.
 
 ![Figure 7.4 Example NUMA main memory architecture, two-processor](./chapter-07/07-04.png)
-*<center>Figure 7.4 Example NUMA main memory architecture, two-processor</center>*
+<p align="center">Figure 7.4 Example NUMA main memory architecture, two-processor</p>
 
 CPU 1 can perform I/O to DRAM A directly, via its memory bus. This is referred to as local memory. CPU 1 performs I/O to DRAM B via CPU 2 and the CPU interconnect (two hops). This is referred to as remote memory and has a higher access latency.
 
@@ -253,19 +253,19 @@ The speed of the memory bus, for any architecture, is often dictated by the memo
 
 Example DDR SDRAM standards are shown in Table 7.1.
 
-*<center>Table 7.1 <b>Example DDR bandwidths</b></center>*
+Table 7.1 <b>Example DDR bandwidths</b>
 
-|Standard| Specification Year |Memory Clock (MHz) | Data Rate (MT/s) | Peak Bandwidth (MB/s)
-|---------|-------------|------------|------------------|--
-|DDR-200  |2000|100|200|1,600|
-|DDR-333  |2000|167|333|2,667|
-|DDR2-667 |2003|167|667|5,333|
-|DDR2-800 |2003|200|800|6,400|
-|DDR3-1333|2007|167|1,333|10,667|
-|DDR3-1600|2007|200|1,600|12,800|
-|DDR4-3200|2012|200|3,200|25,600|
-|DDR5-4800|2020|200|4,800|38,400|
-|DDR5-6400|2020|200|6,400|51,200|
+| Standard  | Specification Year | Memory Clock (MHz) | Data Rate (MT/s) | Peak Bandwidth (MB/s) |
+| --------- | -----------------: | -----------------: | ---------------: | --------------------: |
+| DDR-200   | 2000               | 100                | 200              | 1,600                 |
+| DDR-333   | 2000               | 167                | 333              | 2,667                 |
+| DDR2-667  | 2003               | 167                | 667              | 5,333                 |
+| DDR2-800  | 2003               | 200                | 800              | 6,400                 |
+| DDR3-1333 | 2007               | 167                | 1,333            | 10,667                |
+| DDR3-1600 | 2007               | 200                | 1,600            | 12,800                |
+| DDR4-3200 | 2012               | 200                | 3,200            | 25,600                |
+| DDR5-4800 | 2020               | 200                | 4,800            | 38,400                |
+| DDR5-6400 | 2020               | 200                | 6,400            | 51,200                |
 
 
 The DDR5 standard is expected to be released during 2020 by the JEDEC Solid State Technology Association. These standards are also named using “PC-” followed by the data transfer rate in megabytes per second, for example, PC-1600.
@@ -293,7 +293,7 @@ The MMU (memory management unit) is responsible for virtual-to-physical address 
 A generic MMU is pictured in Figure 7.5, with levels of CPU caches and main memory.
 
 ![Figure 7.5 Memory management unit](./chapter-07/07-05.png)
-*Figure 7.5 Memory management unit*
+<p align="center">Figure 7.5 Memory management unit
 
 #### Multiple Page Sizes
 
@@ -309,12 +309,12 @@ As an example of TLB sizes, a typical Intel Core i7 processor provides the four 
 
 *Table 7.2 TLBs for a typical Intel Core i7 processor*
 
-|Type|Page Size|Entries|
-|----|---------|-------|
-|Instruction|4 K|64 per thread, 128 per core|
-|Instruction|large|7 per thread|
-|Data|4 K|64|
-|Data|large|32|
+| Type        | Page Size | Entries                     |
+| ----------- | --------- | --------------------------- |
+| Instruction | 4 K       | 64 per thread, 128 per core |
+| Instruction | large     | 7 per thread                |
+| Data        | 4 K       | 64                          |
+| Data        | large     | 32                          |
 
 This processor has one level of data TLB. The Intel Core microarchitecture supports two levels, similar to the way CPUs provide multiple levels of main memory cache.
 
@@ -329,7 +329,7 @@ Software for memory management includes the virtual memory system, address trans
 When the available memory on the system becomes low, there are various methods that the kernel can use to free up memory, adding it to the free list of pages. These methods are pictured in Figure 7.6 for Linux, in the general order in which they are used as available memory decreases.
 
 ![Figure 7.6 Linux memory availability management](./chapter-07/07-06.png)
-*Figure 7.6 Linux memory availability management*
+<p align="center">Figure 7.6 Linux memory availability management
 
 These methods are:
 
@@ -356,7 +356,7 @@ The following sections describe free lists, reaping, and the page-out daemon.
 The original Unix memory allocator used a memory map and a first-fit scan. With the introduction of paged virtual memory in BSD, a free list and a page-out daemon were added [Babaoglu 79]. The free list, pictured in Figure 7.7, allows available memory to be located immediately.
 
 ![Figure 7.7 Free list operations](./chapter-07/07-07.png)
-*Figure 7.7 Free list operations*
+<p align="center">Figure 7.7 Free list operations
 
 Memory freed is added to the head of the list for future allocations. Memory that is freed by the page-out daemon—and that may still contain useful cached file system pages—is added to the tail. Should a future request for one of these pages occur before the useful page has been reused, it can be reclaimed and removed from the free list.
 
@@ -388,14 +388,14 @@ Freeing memory by paging is managed by the kernel page-out daemon. When availabl
 On Linux, the page-out daemon is called kswapd, which scans LRU page lists of inactive and active memory to free pages. It is woken up based on free memory and two thresholds to provide hysteresis, as shown in Figure 7.8.
 
 ![Figure 7.8 kswapd wake-ups and modes](./chapter-07/07-08.png)
-*Figure 7.8 kswapd wake-ups and modes*
+<p align="center">Figure 7.8 kswapd wake-ups and modes
 
 Once free memory has reached the lowest threshold, kswapd runs in the foreground, synchronously freeing pages of memory as they are requested, a method sometimes known as direct-reclaim [Gorman 04]. This lowest threshold is tunable (vm.min_free_kbytes), and the others are scaled based on it (by 2x for low, 3x for high). For workloads with high allocation bursts that outpace kswap reclamation, Linux provides additional tunables for more aggressive scanning, vm.watermark_scale_factor and vm.watermark_boost_factor: see Section 7.6.1, Tunable Parameters.
 
 The page cache has separate lists for inactive pages and active pages. These operate in an LRU fashion, allowing kswapd to find free pages quickly. They are shown in Figure 7.9.
 
 ![Figure 7.9 kswapd lists](./chapter-07/07-09.png)
-*Figure 7.9 kswapd lists*
+<p align="center">Figure 7.9 kswapd lists
 
 kswapd scans the inactive list first, and then the active list, if needed. The term scanning refers to checking of pages as the list is walked: a page may be ineligible to be freed if it is locked/dirty. The term scanning as used by kswapd has a different meaning than the scanning done by the original UNIX page-out daemon, which scans all of memory.
 
@@ -404,7 +404,7 @@ kswapd scans the inactive list first, and then the active list, if needed. The t
 Managed by both hardware and software, the process virtual address space is a range of virtual pages that are mapped to physical pages as needed. The addresses are split into areas called segments for storing the thread stacks, process executable, libraries, and heap. Examples for 32-bit processes on Linux are shown in Figure 7.10, for both x86 and SPARC processors.
 
 ![Figure 7.10 Example process virtual memory address space](./chapter-07/07-10.png)
-*Figure 7.10 Example process virtual memory address space*
+<p align="center">Figure 7.10 Example process virtual memory address space
 
 On SPARC the kernel resides in a separate full address space (which is not shown in Figure 7.10). Note that on SPARC it is not possible to distinguish between a user and kernel address based only on the pointer value; x86 employs a different scheme where the user and kernel addresses are non-overlapping.<sup>5</sup>
 
@@ -437,7 +437,7 @@ Glibc, commonly used on Linux, is an advanced allocator that supports an mmap mo
 There are a variety of user- and kernel-level allocators for memory allocation. Figure 7.11 shows the role of allocators, including some common types.
 
 ![Figure 7.11 User- and kernel-level memory allocators](./chapter-07/07-11.png)
-*Figure 7.11 User- and kernel-level memory allocators*
+<p align="center">Figure 7.11 User- and kernel-level memory allocators
 
 Page management was described earlier in Section 7.3.2, Software, under Free List(s).
 
