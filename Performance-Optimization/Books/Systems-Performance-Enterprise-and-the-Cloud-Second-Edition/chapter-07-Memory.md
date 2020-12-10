@@ -1438,7 +1438,7 @@ Memory observability tools included in other chapters of this book, and in BPF P
 Table 7.6 **Other memory observability tools***
 
 | Section    | Tool      | Description                                  |
-|------------|-----------|----------------------------------------------|
+| ---------- | --------- | -------------------------------------------- |
 | 6.6.11     | pmcarch   | CPU cycle usage including LLC misses         |
 | 6.6.12     | tlbstat   | Summarizes TLB cycles                        |
 | 8.6.2      | free      | Cache capacity statistics                    |
@@ -1525,3 +1525,199 @@ all_unreclaimable? no
 This can be useful if the system has locked up, as it may still be possible to request this information using the SysRq key sequence on the console keyboard, if available [Linux 20g].
 
 Applications and virtual machines (e.g., the Java VM) may also provide their own memory analysis tools. See Chapter 5, Applications.
+
+## 7.6 TUNING
+
+The most important memory tuning you can do is to ensure that applications remain in main memory, and that paging and swapping do not occur frequently. Identifying this problem was covered in Section 7.4, Methodology, and Section 7.5, Observability Tools. This section discusses other memory tuning: kernel tunable parameters, configuring large pages, allocators, and resource controls.
+
+The specifics of tuning—the options available and what to set them to—depend on the operating system version and the intended workload. The following sections, organized by tuning type, provide examples of which tunable parameters may be available, and why they may need to be tuned.
+
+### 7.6.1 Tunable Parameters
+
+This section describes tunable parameter examples for recent Linux kernels.
+
+Various memory tunable parameters are described in the kernel source documentation in Documentation/sysctl/vm.txt and can be set using sysctl(8). The examples in Table 7.7 are from a 5.3 kernel, with defaults from Ubuntu 19.10 (those listed in the first edition of this book have not changed since then).
+
+Table 7.7 Example Linux memory tunables
+
+| Option                             | Default | Description                                                                                                                                                                                                              |
+| ---------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| vm.dirty_background_bytes          | 0       | Amount of dirty memory to trigger pdflush background write-back                                                                                                                                                          |
+| vm.dirty_background_ratio          | 10      | Percentage of dirty system memory to trigger pdflush background write-back                                                                                                                                               |
+| vm.dirty_bytes                     | 0       | Amount of dirty memory that causes a writing process to start write-back                                                                                                                                                 |
+| vm.dirty_ratio                     | 20      | Ratio of dirty system memory to cause a writing process to begin write-back                                                                                                                                              |
+| vm.dirty_expire_centisecs          | 3,000   | Minimum time for dirty memory to be eligible for pdflush (promotes write cancellation)                                                                                                                                   |
+| vm.dirty_writeback_centisecs       | 500     | pdflush wake-up interval (0 to disable)                                                                                                                                                                                  |
+| vm.min_free_kbytes                 | dynamic | sets the desired free memory amount (some kernel atomic allocations can consume this)                                                                                                                                    |
+| vm.watermark_scale_factor          | 10      | The distance between kswapd watermarks (min, low, high) that control waking up and sleeping (unit is fractions of 10000, such that 10 means 0.1% of system memory)                                                       |
+| vm.watermark_boost_factor          | 5000    | How far past the high watermark kswapd scans when memory is fragmented (recent fragmentation events occurred); unit is fractions of 10000, so 5000 means kswapd can boost up to 150% of the high watermark; 0 to disable |
+| vm.percpu_pagelist_fraction        | 0       | This can override the default max fraction of pages that can be allocated to per-cpu page lists (a value of 10 limits to 1/10th of pages)                                                                                |
+| vm.overcommit_memory               | 0       | 0 = Use a heuristic to allow reasonable overcommits; 1 = always overcommit; 2 = don’t overcommit                                                                                                                         |
+| vm.swappiness                      | 60      | The degree to favor swapping (paging) for freeing memory over reclaiming it from the page cache                                                                                                                          |
+| vm.vfs_cache_pressure              | 100     | The degree to reclaim cached directory and inode objects; lower values retain them more; 0 means never reclaim—can easily lead to out-of-memory conditions                                                               |
+| kernel.numa_balancing              | 1       | Enables automatic NUMA page balancing                                                                                                                                                                                    |
+| kernel.numa_balancing_scan_size_mb | 256     | How many Mbytes of pages are scanned for each NUMA balancing scan                                                                                                                                                        |
+
+The tunables use a consistent naming scheme that includes the units. Note that dirty_background_bytes and dirty_background_ratio are mutually exclusive, as are dirty_bytes and dirty_ratio (when one is set it overrides the other).
+
+The size of vm.min_free_kbytes is set dynamically as a fraction of main memory. The algorithm to choose this is not linear, as needs for free memory do not linearly scale with main memory size. (For reference, this is documented in the Linux source in mm/page_alloc.c.) vm.min_free_kbytes can be reduced to free up some memory for applications, but that can also cause the kernel to be overwhelmed during memory pressure and resort to using OOM sooner. Increasing it can help avoid OOM kills.
+
+Another parameter for avoiding OOM is vm.overcommit_memory, which can be set to 2 to disable overcommit and avoid cases where this leads to OOM. If you want to control the OOM killer on a per-process basis, check your kernel version for /proc tunables such as oom_adj or oom_score_adj. These are described in Documentation/filesystems/proc.txt.
+
+The vm.swappiness tunable can significantly affect performance if it begins swapping application memory earlier than desired. The value of this tunable can be between 0 and 100, with high values favoring swapping applications and therefore retaining the page cache. It may be desirable to set this to zero, so that application memory is retained as long as possible at the expense of the page cache. When there is still a memory shortage, the kernel can still use swapping.
+
+At Netflix, kernel.numa_balancing was set to zero for earlier kernels (around Linux 3.13) because overly aggressive NUMA scanning consumed too much CPU [Gregg 17d]. This was fixed in later kernels, and there are other tunables including kernel.numa_balancing_scan_size_mb for adjusting the aggressiveness of NUMA scanning.
+
+### 7.6.2 Multiple Page Sizes
+
+Large page sizes can improve memory I/O performance by improving the hit ratio of the TLB cache (increasing its reach). Most modern processors support multiple page sizes, such as a 4 Kbyte default and a 2 Mbyte large page.
+
+On Linux, large pages (called huge pages) can be configured in a number of ways. For reference, see Documentation/vm/hugetlbpage.txt.
+
+These usually begin with the creation of huge pages:
+
+```sh
+# echo 50 > /proc/sys/vm/nr_hugepages
+# grep Huge /proc/meminfo
+AnonHugePages:         0 kB
+HugePages_Total:      50
+HugePages_Free:       50
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+```
+
+One way for an application to consume huge pages is via the shared memory segments, and the SHM_HUGETLBS flag to shmget(2). Another way involves creating a huge page-based file system for applications to map memory from:
+
+```sh
+# mkdir /mnt/hugetlbfs
+# mount -t hugetlbfs none /mnt/hugetlbfs -o pagesize=2048K
+```
+
+Other ways include the MAP_ANONYMOUS|MAP_HUGETLB flags to mmap(2) and use of the libhugetlbfs API [Gorman 10].
+
+Finally, transparent huge pages (THP) is another mechanism that uses huge pages by automatically promoting and demoting normal pages to huge, without an application needing to specify huge pages [Corbet 11]. In the Linux source see Documentation/vm/transhuge.txt and admin-guide/mm/transhuge.rst. <sup>11</sup>
+
+<sup>11</sup> Note that historically there were performance issues with transparent huge pages, deterring its usage. These issues have hopefully been fixed.
+
+### 7.6.3 Allocators
+
+Different user-level allocators may be available, offering improved performance for multithreaded applications. These may be selected at compile time, or at execution time by setting the LD_PRELOAD environment variable.
+
+For example, the libtcmalloc allocator could be selected using:
+
+```sh
+export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4
+```
+
+This may be placed in its startup script.
+
+### 7.6.4 NUMA Binding
+
+On NUMA systems, the numactl(8) command can be used to bind processes to NUMA nodes. This can improve performance for applications that do not need more than a single NUMA node of main memory. Example usage:
+
+```sh
+# numactl --membind=0 3161
+```
+
+This binds PID 3161 to NUMA node 0. Future memory allocations for this process will fail if they cannot be satisfied from this node. When using this option, you should also investigate using the --physcpubind option to also restrict CPU usage to CPUs connected to that NUMA node. I commonly use both NUMA and CPU bindings to restrict a process to a single socket, to avoid the performance penalty of CPU interconnect access.
+
+Use numastat(8) (Section 7.5.6) to list available NUMA nodes.
+
+### 7.6.5 Resource Controls
+
+Basic resource controls, including setting a main memory limit and a virtual memory limit, may be available using ulimit(1).
+
+For Linux, the container groups (cgroups) memory subsystem provides various additional controls. These include:
+
+* `memory.limit_in_bytes`: The maximum allowed user memory, including file cache usage, in bytes
+* `memory.memsw.limit_in_bytes`: The maximum allowed memory and swap space, in bytes (when swap is in use)
+* `memory.kmem.limit_in_bytes`: The maximum allowed kernel memory, in bytes
+* `memory.tcp.limit_in_bytes`: The maximum tcp buffer memory, in bytes.
+* `memory.swappiness`: Similar to vm.swappiness described earlier but can be set for a cgroup
+* `memory.oom_control`: Can be set to 0, to allow the OOM killer for this cgroup, or 1, to disable it
+
+Linux also allows system-wide configuration in /etc/security/limits.conf.
+
+For more on resource controls, see Chapter 11, Cloud Computing.
+
+## 7.7 EXERCISES
+
+1. Answer the following questions about memory terminology:
+   1. What is a page of memory?
+   2. What is resident memory?
+   3. What is virtual memory?
+   4. Using Linux terminology, what is the difference between paging and swapping?
+2. Answer the following conceptual questions:
+   1. What is the purpose of demand paging?
+   2. Describe memory utilization and saturation.
+   3. What is the purpose of the MMU and the TLB?
+   4. What is the role of the page-out daemon?
+   5. What is the role of the OOM killer?
+3. Answer the following deeper questions:
+   1. What is anonymous paging, and why is it more important to analyze than file system paging?
+   2. Describe the steps the kernel takes to free up more memory when free memory becomes exhausted on Linux-based systems.
+   3. Describe the performance advantages of slab-based allocation.
+4. Develop the following procedures for your operating system:
+   1. A USE method checklist for memory resources. Include how to fetch each metric (e.g., which command to execute) and how to interpret the result. Try to use existing OS observability tools before installing or using additional software products.
+   2. Create a workload characterization checklist for memory resources. Include how to fetch each metric, and try to use existing OS observability tools first.
+5. Perform these tasks:
+   1. Choose an application, and summarize code paths that lead to memory allocation (malloc(3)).
+   2. Choose an application that has some degree of memory growth (calling brk(2) or sbrk(2)), and summarize code paths that lead to this growth.
+   3. Describe the memory activity visible in the following Linux output alone:
+```sh
+# vmstat 1
+procs -----------memory-------- ---swap-- -----io---- --system-- -----cpu-----
+ r  b   swpd   free  buff cache   si   so    bi    bo   in   cs us sy id wa st
+ 2  0 413344  62284    72  6972    0    0    17    12    1    1  0  0 100  0  0
+ 2  0 418036  68172    68  3808    0 4692  4520  4692 1060 1939 61 38  0  1  0
+ 2  0 418232  71272    68  1696    0  196 23924   196 1288 2464 51 38  0 11  0
+ 2  0 418308  68792    76  2456    0   76  3408    96 1028 1873 58 39  0  3  0
+ 1  0 418308  67296    76  3936    0    0  1060     0 1020 1843 53 47  0  0  0
+ 1  0 418308  64948    76  3936    0    0     0     0 1005 1808 36 64  0  0  0
+ 1  0 418308  62724    76  6120    0    0  2208     0 1030 1870 62 38  0  0  0
+ 1  0 422320  62772    76  6112    0 4012     0  4016 1052 1900 49 51  0  0  0
+ 1  0 422320  62772    76  6144    0    0     0     0 1007 1826 62 38  0  0  0
+ 1  0 422320  60796    76  6144    0    0     0     0 1008 1817 53 47  0  0  0
+ 1  0 422320  60788    76  6144    0    0     0     0 1006 1812 49 51  0  0  0
+ 3  0 430792  65584    64  5216    0 8472  4912  8472 1030 1846 54 40  0  6  0
+ 1  0 430792  64220    72  6496    0    0  1124    16 1024 1857 62 38  0  0  0
+ 2  0 434252  68188    64  3704    0 3460  5112  3460 1070 1964 60 40  0  0  0
+ 2  0 434252  71540    64  1436    0    0 21856     0 1300 2478 55 41  0  4  0
+ 1  0 434252  66072    64  3912    0    0  2020     0 1022 1817 60 40  0  0  0
+[...]
+```
+
+6. (optional, advanced) Find or develop metrics to show how well the kernel NUMA memory locality policies are working in practice. Develop “known” workloads that have good or poor memory locality for testing the metrics.
+
+## 7.8 REFERENCES
+
+* [Corbató 68] Corbató, F. J., A Paging Experiment with the Multics System, MIT Project MAC Report MAC-M-384, 1968.
+* [Denning 70] Denning, P., “Virtual Memory,” ACM Computing Surveys (CSUR) 2, no. 3, 1970.
+* [Peterson 77] Peterson, J., and Norman, T., “Buddy Systems,” Communications of the ACM, 1977.
+* [Thompson 78] Thompson, K., UNIX Implementation, Bell Laboratories, 1978.
+* [Babaoglu 79] Babaoglu, O., Joy, W., and Porcar, J., Design and Implementation of the Berkeley Virtual Memory Extensions to the UNIX Operating System, Computer Science Division, Deptartment of Electrical Engineering and Computer Science, University of California, Berkeley, 1979.
+* [Bach 86] Bach, M. J., The Design of the UNIX Operating System, Prentice Hall, 1986.
+* [Bonwick 94] Bonwick, J., “The Slab Allocator: An Object-Caching Kernel Memory Allocator,” USENIX, 1994.
+* [Bonwick 01] Bonwick, J., and Adams, J., “Magazines and Vmem: Extending the Slab Allocator to Many CPUs and Arbitrary Resources,” USENIX, 2001.
+* [Corbet 04] Corbet, J., “2.6 swapping behavior,” LWN.net, http://lwn.net/Articles/83588, 2004
+* [Gorman 04] Gorman, M., Understanding the Linux Virtual Memory Manager, Prentice Hall, 2004.
+* [McDougall 06a] McDougall, R., Mauro, J., and Gregg, B., Solaris Performance and Tools: DTrace and MDB Techniques for Solaris 10 and OpenSolaris, Prentice Hall, 2006.
+* [Ghemawat 07] Ghemawat, S., “TCMalloc : Thread-Caching Malloc,” https://gperftools.github.io/gperftools/tcmalloc.html, 2007.
+* [Lameter 07] Lameter, C., “SLUB: The unqueued slab allocator V6,” Linux kernel mailing list, http://lwn.net/Articles/229096, 2007.
+* [Hall 09] Hall, A., “Thanks for the Memory, Linux,” Andrew Hall, https://www.ibm.com/developerworks/library/j-nativememory-linux, 2009.
+* [Gorman 10] Gorman, M., “Huge pages part 2: Interfaces,” LWN.net, http://lwn.net/Articles/375096, 2010.
+* [Corbet 11] Corbet, J., “Transparent huge pages in 2.6.38,” LWN.net, http://lwn.net/Articles/423584, 2011.
+* [Facebook 11] “Scalable memory allocation using jemalloc,” Facebook Engineering, https://www.facebook.com/notes/facebook-engineering/scalable-memory-allocation-using-jemalloc/480222803919, 2011.
+* [Evans 17] Evans, J., “Swapping, memory limits, and cgroups,” https://jvns.ca/blog/2017/02/17/mystery-swap, 2017.
+* [Gregg 17d] Gregg, B., “AWS re:Invent 2017: How Netflix Tunes EC2,” http://www.brendangregg.com/blog/2017-12-31/reinvent-netflix-ec2-tuning.html, 2017.
+* [Corbet 18a] Corbet, J., “Is it time to remove ZONE_DMA?” LWN.net, https://lwn.net/Articles/753273, 2018.
+* [Crucial 18] “The Difference between RAM Speed and CAS Latency,” https://www.crucial.com/articles/about-memory/difference-between-speed-and-latency, 2018.
+* [Gregg 18c] Gregg, B., “Working Set Size Estimation,” http://www.brendangregg.com/wss.html, 2018.
+* [Facebook 19] “Getting Started with PSI,” Facebook Engineering, https://facebookmicrosites.github.io/psi/docs/overview, 2019.
+* [Gregg 19] Gregg, B., BPF Performance Tools: Linux System and Application Observability, Addison-Wesley, 2019.
+* [Intel 19a] Intel 64 and IA-32 Architectures Software Developer’s Manual, Combined Volumes: 1, 2A, 2B, 2C, 3A, 3B and 3C, Intel, 2019.
+* [Amazon 20] “Amazon EC2 High Memory Instances,” https://aws.amazon.com/ec2/instance-types/high-memory, accessed 2020.
+* [Linux 20g] “Linux Magic System Request Key Hacks,” Linux documentation, https://www.kernel.org/doc/html/latest/admin-guide/sysrq.html, accessed 2020.
+* [Robertson 20] Robertson, A., “bpftrace,” https://github.com/iovisor/bpftrace, last updated 2020.
+* [Valgrind 20] “Valgrind Documentation,” http://valgrind.org/docs/manual, May 2020.
