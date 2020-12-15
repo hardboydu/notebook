@@ -39,129 +39,202 @@ The on-CPU memory caches (Level 1/2/3, TLB) are covered in Chapter 6, CPUs.
 
 For reference, memory-related terminology used in this chapter includes the following:
 
-* **Main memory**: Also referred to as physical memory, this describes the fast data storage area of a computer, commonly provided as DRAM.
-* **Virtual memory**: An abstraction of main memory that is (almost) infinite and non-contended. Virtual memory is not real memory.
-* **Resident memory**: Memory that currently resides in main memory.
-* **Anonymous memory**: Memory with no file system location or path name. It includes the working data of a process address space, called the heap.
-* **Address space**: A memory context. There are virtual address spaces for each process, and for the kernel.
-* **Segment**: An area of virtual memory flagged for a particular purpose, such as for storing executable or writeable pages.
-* **Instruction text**: Refers to CPU instructions in memory, usually in a segment.
-* **OOM**: Out of memory, when the kernel detects low available memory.
-* **Page**: A unit of memory, as used by the OS and CPUs. Historically it is either 4 or 8 Kbytes. Modern processors have multiple page size support for larger sizes.
-* **Page fault**: An invalid memory access. These are normal occurrences when using on-demand virtual memory.
-* **Paging**: The transfer of pages between main memory and the storage devices.
-* **Swapping**: Linux uses the term swapping to refer to anonymous paging to the swap device (the transfer of swap pages). In Unix and other operating systems, swapping is the transfer of entire processes between main memory and the swap devices. This book uses the Linux version of the term.
-* **Swap**: An on-disk area for paged anonymous data. It may be an area on a storage device, also called a physical swap device, or a file system file, called a swap file. Some tools use the term swap to refer to virtual memory (which is confusing and incorrect).
+作为参考，本章中使用的与内存相关的术语包括：
+
+* **Main memory**: Also referred to as physical memory, this describes the fast data storage area of a computer, commonly provided as DRAM. <br> **主存**：也称为物理内存，它描述计算机的快速数据存储区域，通常以 DRAM 的形式提供。
+* **Virtual memory**: An abstraction of main memory that is (almost) infinite and non-contended. Virtual memory is not real memory. <br> **虚拟内存**：（几乎）无限且无竞争的主内存的抽象。 虚拟内存不是真实内存。
+* **Resident memory**: Memory that currently resides in main memory. <br> **驻留内存**：当前驻留在主存中的内存。
+* **Anonymous memory**: Memory with no file system location or path name. It includes the working data of a process address space, called the heap. <br> **匿名内存**：没有文件系统位置或路径名的内存。 它包括进程地址空间（称为堆）的工作数据。
+* **Address space**: A memory context. There are virtual address spaces for each process, and for the kernel. <br> **地址空间**：内存上下文。每个进程和内核都有虚拟地址空间。
+* **Segment**: An area of virtual memory flagged for a particular purpose, such as for storing executable or writeable pages. <br> **段**：为特定目的标记的虚拟内存区域，例如用于存储可执行或可写页面的区域。
+* **Instruction text**: Refers to CPU instructions in memory, usually in a segment. <br> 指令文本：指内存中的CPU指令，通常在一个段中。
+* **OOM**: Out of memory, when the kernel detects low available memory. <br> **OOM**：内存不足，当内核检测到可用内存不足时。
+* **Page**: A unit of memory, as used by the OS and CPUs. Historically it is either 4 or 8 Kbytes. Modern processors have multiple page size support for larger sizes. <br> **页面**：OS 和 CPU 使用的内存单位。 历史上它是 4 或 8 KB。 现代处理器对更大尺寸的页面具有多种支持。
+* **Page fault**: An invalid memory access. These are normal occurrences when using on-demand virtual memory. <br> **页面错误**：无效的内存访问。 这些是使用按需虚拟内存时的正常现象。
+* **Paging**: The transfer of pages between main memory and the storage devices. <br> **分页**：在主内存和存储设备之间的页面传输。
+* **Swapping**: Linux uses the term swapping to refer to anonymous paging to the swap device (the transfer of swap pages). In Unix and other operating systems, swapping is the transfer of entire processes between main memory and the swap devices. This book uses the Linux version of the term. <br> **交换**：Linux使用交换一词来指代对交换设备的匿名页面调度（交换页面的传输）。 在Unix和其他操作系统中，交换是主内存和交换设备之间整个进程的转移。 本书使用该术语的Linux版本。
+* **Swap**: An on-disk area for paged anonymous data. It may be an area on a storage device, also called a physical swap device, or a file system file, called a swap file. Some tools use the term swap to refer to virtual memory (which is confusing and incorrect). <br> **交换**：分页匿名数据的磁盘上区域。 它可以是存储设备（也称为物理交换设备）或文件系统文件（称为交换文件）上的区域。 一些工具使用术语swap来指代虚拟内存（这是令人困惑且不正确的）。
 
 Other terms are introduced throughout this chapter. The Glossary includes basic terminology for reference if needed, including address, buffer, and DRAM. Also see the terminology sections in Chapters 2 and 3.
+
+在本章中将介绍其他术语。 该词汇表包括一些基本术语，供需要时参考，包括地址，缓冲区和 DRAM。 另请参阅第2章和第3章中的术语部分。
 
 ## 7.2 CONCEPTS 概念
 
 The following are a selection of important concepts regarding memory and memory performance.
 
-### 7.2.1 Virtual Memory
+以下是有关内存和内存性能的重要概念的选择。
+
+### 7.2.1 Virtual Memory 虚拟内存
 
 Virtual memory is an abstraction that provides each process and the kernel with its own large, linear, and private address space. It simplifies software development, leaving physical memory placement for the operating system to manage. It also supports multitasking (virtual address spaces are separated by design) and oversubscription (in-use memory can extend beyond main memory). Virtual memory was introduced in Chapter 3, Operating Systems, Section 3.2.8, Virtual Memory. For historical background, see [Denning 70].
 
+虚拟内存是一种抽象，为每个进程和内核提供了自己的大型线性私有地址空间。 它简化了软件开发，将物理内存放置留给操作系统管理。 它还支持多任务处理（虚拟地址空间由设计分隔）和超额预订（使用中的内存可以扩展到主存之外）。 在第3章，操作系统，第3.2.8节，虚拟内存中介绍了虚拟内存。 有关历史背景，请参阅[Denning 70]。
+
 Figure 7.1 shows the role of virtual memory for a process, on a system with a swap device (secondary storage). A page of memory is shown, as most virtual memory implementations are page-based.
+
+图 7.1 显示了在具有交换设备（辅助存储）的系统上，虚拟内存在进程中的作用。 显示了一页内存，因为大多数虚拟内存实现都是基于页面的。
 
 ![Figure 7.1 Process virtual memory](./chapter-07/07-01.png)
 <p align="center">Figure 7.1 Process virtual memory</p>
 
 The process address space is mapped by the virtual memory subsystem to main memory and the physical swap device. Pages of memory can be moved between them by the kernel as needed, a process Linux calls swapping (and other OSes call anonymous paging). This allows the kernel to oversubscribe main memory.
 
+虚拟内存子系统将进程地址空间映射到主内存和物理交换设备。内存页可以由内核根据需要在它们之间移动，Linux称为交换过程（其他OS称为匿名分页）。这允许内核超额预订主内存。
+
 The kernel may impose a limit to oversubscription. A commonly used limit is the size of main memory plus the physical swap devices. The kernel can fail allocations that try to exceed this limit. Such “out of virtual memory” errors can be confusing at first glance, since virtual memory itself is an abstract resource.
+
+内核可能会对超额预订施加限制。 常用的限制是主内存加上物理交换设备的大小。 内核可能会使尝试超过此限制的分配失败。 乍一看，此类“虚拟内存不足”错误可能会造成混淆，因为虚拟内存本身是一种抽象资源。
 
 Linux also allows other behaviors, including placing no bounds on memory allocation. This is termed overcommit and is described after the following sections on paging and demand paging, which are necessary for overcommit to work.
 
-### 7.2.2 Paging
+Linux还允许其他行为，包括不限制内存分配。这被称为过量使用，并在以下有关分页和需求分页的部分中进行了描述，这对于过量使用是必需的。
+
+### 7.2.2 Paging 分页
 
 Paging is the movement of pages in and out of main memory, which are referred to as page-ins and page-outs, respectively. It was first introduced by the Atlas Computer in 1962 [Corbató 68], allowing:
 
-* Partially loaded programs to execute
-* Programs larger than main memory to execute
-* Efficient movement of programs between main memory and storage devices
+分页是将页面移入和移出主内存的操作，分别称为分页输入和分页输出。 它于1962年由Atlas Computer [Corbató68]首次引入，它允许：
+
+* Partially loaded programs to execute <br> 部分加载的程序来执行
+* Programs larger than main memory to execute <br> 大于主存储器的程序要执行
+* Efficient movement of programs between main memory and storage devices <br> 程序在主存储器和存储设备之间的高效移动
 
 These abilities are still true today. Unlike the earlier technique of swapping out entire programs, paging is a fine-grained approach to managing and freeing main memory, since the page size unit is relatively small (e.g., 4 Kbytes).
 
+这些能力在今天仍然是正确的。 与早期的换出整个程序的技术不同，分页是一种用于管理和释放主内存的细粒度方法，因为页面大小单位相对较小（例如4 KB）。
+
 Paging with virtual memory (*paged virtual memory*) was introduced to Unix via BSD [Babaoglu 79] and became the standard.
 
-With the later addition of the page cache for sharing file system pages (see Chapter 8, File Systems), two different types of paging became available: file system paging and anonymous paging.
+通过BSD [Babaoglu 79]将虚拟内存（*页面虚拟内存*）的分页引入Unix，并成为标准。
 
-#### File System Paging
+With the later addition of the page cache for sharing file system pages (see Chapter 8, File Systems), two different types of paging became available: *file system paging* and *anonymous paging*.
 
-File system paging is caused by the reading and writing of pages in memory-mapped files. This is normal behavior for applications that use file memory mappings (mmap(2)) and on file systems that use the page cache (most do; see Chapter 8, File Systems). It has been referred to as “good” paging [McDougall 06a].
+后来增加了用于共享文件系统页面的页面缓存（请参见第8章，文件系统），两种不同类型的页面调度变得可用：*文件系统页面调度* 和*匿名页面调度*。
+
+#### File System Paging 文件系统分页
+
+File system paging is caused by the reading and writing of pages in memory-mapped files. This is normal behavior for applications that use file memory mappings (`mmap(2)`) and on file systems that use the page cache (most do; see Chapter 8, File Systems). It has been referred to as "good" paging [McDougall 06a].
+
+文件系统分页是由读取和写入内存映射文件中的页面引起的。对于使用文件内存映射（`mmap(2)`）的应用程序和使用页面高速缓存的文件系统（大多数操作；请参见第8章，文件系统），这是正常的行为。 它被称为 “良好” 分页 [McDougall 06a]。
 
 When needed, the kernel can free memory by paging some out. This is where the terminology gets a bit tricky: if a file system page has been modified in main memory (called dirty), the page-out will require it to be written to disk. If, instead, the file system page has not been modified (called clean), the page-out merely frees the memory for immediate reuse, since a copy already exists on disk. Because of this, the term page-out means that a page was moved out of memory—which may or may not have included a write to a storage device (you may see the term page-out defined differently in other texts).
 
-#### Anonymous Paging (Swapping)
+必要时，内核可以通过分页来释放内存。这是术语有点棘手的地方：如果已在主内存中修改了文件系统页面（称为脏文件），则页面输出将要求将其写入磁盘。 相反，如果尚未修改文件系统页面（称为“干净”），则页面输出仅释放内存以立即重用，因为磁盘上已经存在一个副本。 因此，术语“页面输出”意味着页面已移出内存——可能包含或可能不包含对存储设备的写操作（您可能会看到术语“页面输出”在其他文本中的定义不同）。
+
+#### Anonymous Paging (Swapping) 匿名分页（交换）
 
 Anonymous paging involves data that is private to processes: the process heap and stacks. It is termed anonymous because it has no named location in the operating system (i.e., no file system path name). Anonymous page-outs require moving the data to the physical swap devices or swap files. Linux uses the term swapping to refer to this type of paging.
 
-Anonymous paging hurts performance and has therefore been referred to as “bad” paging [McDougall 06a]. When applications access memory pages that have been paged out, they block on the disk I/O required to read them back to main memory.1 This is an anonymous page-in, which introduces synchronous latency to the application. Anonymous page-outs may not affect application performance directly, as they can be performed asynchronously by the kernel.
+匿名分页涉及进程专用的数据：进程堆和堆栈。之所以称为匿名，是因为它在操作系统中没有命名位置（即，没有文件系统路径名）。匿名页面调出要求将数据移动到物理交换设备或交换文件。Linux使用术语交换来指代这种类型的页面调度。
 
-> <sup>1</sup>If faster storage devices are used as swap devices, such as 3D XPoint with sub 10 μs latency, swapping may not be the same “bad” paging it once was, but rather become a simple way to intentionally extend main memory, one with mature kernel support.
+Anonymous paging hurts performance and has therefore been referred to as "bad" paging [McDougall 06a]. When applications access memory pages that have been paged out, they block on the disk I/O required to read them back to main memory. <sup>1</sup> This is an anonymous page-in, which introduces synchronous latency to the application. Anonymous page-outs may not affect application performance directly, as they can be performed asynchronously by the kernel.
+
+匿名寻呼会影响性能，因此被称为 “不良” 分页[McDougall 06a]。当应用程序访问已调出的内存页面时，它们会阻塞将其读回主内存所需的磁盘 I/O。<sup>1</sup> 这是匿名的页面调入，这给应用程序带来了同步延迟。匿名页面输出可能不会直接影响应用程序性能，因为它们可以由内核异步执行。
+
+> <sup><sup>1</sup> If faster storage devices are used as swap devices, such as 3D XPoint with sub 10 μs latency, swapping may not be the same “bad” paging it once was, but rather become a simple way to intentionally extend main memory, one with mature kernel support.</sup>
+> <sup><sup>1</sup> 如果将速度更快的存储设备用作交换设备，例如3D XPoint且延迟不到10 s，则交换可能不是一次曾经的“错误”分页，而是成为一种有意扩展主内存的简单方法，即具有成熟内核的内存 支持。</sup>
 
 Performance is best when there is no anonymous paging (swapping). This can be achieved by configuring applications to remain within the main memory available and by monitoring page scanning, memory utilization, and anonymous paging, to ensure that there are no indicators of a memory shortage.
 
-### 7.2.3 Demand Paging
+没有匿名分页（交换）时，性能最佳。 这可以通过将应用程序配置为保留在主内存中并监视页面扫描，内存利用率和匿名分页来实现，以确保不存在内存不足的迹象。
+
+### 7.2.3 Demand Paging 需求分页
 
 Operating systems that support demand paging (most do) map pages of virtual memory to physical memory on demand, as shown in Figure 7.2. This defers the CPU overhead of creating the mappings until they are actually needed and accessed, instead of at the time a range of memory is first allocated.
+
+支持需求分页（大多数情况下）的操作系统将虚拟内存的页面按需映射到物理内存，如图7.2所示。 这推迟了创建映射的CPU开销，直到实际需要和访问它们为止，而不是在第一次分配内存范围之时。
 
 ![Figure 7.2 Page fault example](./chapter-07/07-02.png)
 <p align="center">Figure 7.2 Page fault example</p>
 
 The sequence shown in Figure 7.2 begins with a malloc() (step 1) that provides allocated memory, and then a store instruction (step 2) to that newly allocated memory. For the MMU to determine the main memory location of the store, it performs a virtual to physical lookup (step 3) for the page of memory, which fails as there is not yet a mapping. This failure is termed a page fault (step 4), which triggers the kernel to create an on-demand mapping (step 5). Sometime later, the page of memory could be paged out to the swap devices to free up memory (step 6).
 
+图7.2 中所示的序列以提供分配的内存的 `malloc()`（步骤1）开始，然后是该新分配的内存的存储指令（步骤2）。 为了使MMU确定存储的主内存位置，它会对内存页面执行虚拟到物理查找（步骤3），由于没有映射，该操作失败。 这种故障称为页面错误（步骤4），它触发内核创建按需映射（步骤5）。 稍后，可以将内存页面调出到交换设备以释放内存（步骤6）。
+
 Step 2 could also be a load instruction in the case of a mapped file, which should contain data but isn’t yet mapped to this process address space.
 
-If the mapping can be satisfied from another page in memory, it is called a minor fault. This may occur for mapping a new page from available memory, during memory growth of the process (as pictured). It can also occur for mapping to another existing page, such as reading a page from a mapped shared library.
+对于映射文件，步骤2也可以是加载指令，该文件应包含数据但尚未映射到该进程地址空间。
+
+If the mapping can be satisfied from another page in memory, it is called a *minor fault*. This may occur for mapping a new page from available memory, during memory growth of the process (as pictured). It can also occur for mapping to another existing page, such as reading a page from a mapped shared library.
+
+如果可以从内存中的另一个页面满足该映射，则称为*次要错误*。 在过程的内存增长过程中（如图所示），可能会从可用内存映射新页面。 映射到另一个现有页面时也可能发生这种情况，例如从映射的共享库中读取页面。
 
 Page faults that require storage device access (not shown in this figure), such as accessing an uncached memory-mapped file, are called major faults.
 
+需要访问存储设备的页面错误（此图中未显示），例如访问未缓存的内存映射文件，被称为主要错误。
+
 The result of the virtual memory model and demand allocation is that any page of virtual memory may be in one of the following states:
 
-1. Unallocated
-2. Allocated, but unmapped (unpopulated and not yet faulted)
-3. Allocated, and mapped to main memory (RAM)
-4. Allocated, and mapped to the physical swap device (disk)
+虚拟内存模型和需求分配的结果是，虚拟内存的任何页面都可能处于以下状态之一：
+
+1. Unallocated <br> 未分配
+2. Allocated, but unmapped (unpopulated and not yet faulted) <br> 已分配但未映射（未填充且尚未出错）
+3. Allocated, and mapped to main memory (RAM) <br> 分配并映射到主内存（RAM）
+4. Allocated, and mapped to the physical swap device (disk) <br> 分配并映射到物理交换设备（磁盘）
 
 State (D) is reached if the page is paged out due to system memory pressure. A transition from (B) to (C) is a page fault. If it requires disk I/O, it is a major page fault; otherwise, a minor page fault.
 
+如果由于系统内存压力而将页面调出页面，则达到状态（D）。 从（B）到（C）的转换是页面错误。 如果需要磁盘 I/O，则是主要的页面错误； 否则，将出现轻微的页面错误。
+
 From these states, two memory usage terms can also be defined:
 
-* **Resident set size (RSS)**: The size of allocated main memory pages (C)
-* **Virtual memory size**: The size of all allocated areas (B + C + D)
+从这些状态，还可以定义两个内存使用条件：
+
+* **Resident set size (RSS)**: The size of allocated main memory pages (C) <br> **驻留集大小（RSS）**：分配的主内存页的大小（C）
+* **Virtual memory size**: The size of all allocated areas (B + C + D) <br> **虚拟内存大小**：所有已分配区域的大小（B + C + D）
 
 Demand paging was added to Unix via BSD, along with paged virtual memory. It has become the standard and is used by Linux.
 
-### 7.2.4 Overcommit
+需求分页是通过BSD以及分页的虚拟内存添加到Unix的。 它已成为标准，并已被Linux使用。
+
+### 7.2.4 Overcommit 过量使用
 
 Linux supports the notion of overcommit, which allows more memory to be allocated than the system can possibly store—more than physical memory and swap devices combined. It relies on demand paging and the tendency of applications to not use much of the memory they have allocated.
 
-With overcommit, application requests for memory (e.g., malloc(3)) will succeed when they would otherwise have failed. Instead of allocating memory conservatively to remain within virtual memory limits, an application programmer can allocate memory generously and later use it sparsely on demand.
+Linux支持过量使用（overcommit）概念，该概念允许分配比系统可能存储的更多的内存，而不是物理内存和交换设备的总和。 它取决于需求分页和应用程序倾向于不使用它们已分配的大量内存的趋势。
+
+With overcommit, application requests for memory (e.g., `malloc(3)`) will succeed when they would otherwise have failed. Instead of allocating memory conservatively to remain within virtual memory limits, an application programmer can allocate memory generously and later use it sparsely on demand.
+
+通过过量提交，应用程序对内存的请求（例如 `malloc(3)`）将在其他情况下失败时成功。 应用程序程序员可以慷慨地分配内存，然后根据需要稀疏地使用它，而不是保守地分配内存以保持在虚拟内存限制之内。
 
 On Linux, the behavior of overcommit can be configured with a tunable parameter. See Section 7.6, Tuning, for details. The consequences of overcommit depend on how the kernel manages memory pressure; see the discussion of the OOM killer in Section 7.3, Architecture.
 
-### 7.2.5 Process Swapping
+在Linux上，可以使用可调参数来配置过量使用行为。 有关详细信息，请参见第7.6节“调整”。 过量使用的后果取决于内核如何管理内存压力。 请参阅第7.3节“体系结构”中有关OOM杀手的讨论。
+
+### 7.2.5 Process Swapping 进程交换
 
 Process swapping is the movement of entire processes between main memory and the physical swap device or swap file. This is the original Unix technique for managing main memory and is the origin of the term swap [Thompson 78].
 
+进程交换是整个进程在主内存和物理交换设备或交换文件之间的移动。 这是用于管理主内存的原始Unix技术，并且是术语swap [Thompson 78]的起源。
+
 To swap out a process, all of its private data must be written to the swap device, including the process heap (anonymous data), its open file table, and other metadata that is only needed when the process is active. Data that originated from file systems and has not been modified can be dropped and read from the original locations again when needed.
+
+要交换出一个进程，必须将其所有私有数据写入交换设备，包括进程堆（匿名数据），其打开文件表以及仅在该进程处于活动状态时才需要的其他元数据。 可以删除源自文件系统但尚未修改的数据，并在需要时再次从原始位置读取。
 
 Process swapping severely hurts performance, as a process that has been swapped out requires numerous disk I/O to run again. It made more sense on early Unix for the machines of the time, such as the PDP-11, which had a maximum process size of 64 Kbytes [Bach 86]. (Modern systems allow process sizes measured in the Gbytes.)
 
+进程交换严重损害了性能，因为已交换的进程需要大量磁盘 I/O 才能再次运行。 在当时的早期Unix机器上，例如PDP-11，其最大进程大小为64 KB [Bach 86]，这在当时更有意义。 （现代系统允许以GB为单位度量进程的大小。）
+
 This description is provided for historical background. Linux systems do not swap processes at all and rely only on paging.
 
-### 7.2.6 File System Cache Usage
+提供此描述是出于历史背景。Linux系统根本不交换进程，而仅依靠分页。
+
+### 7.2.6 File System Cache Usage 文件系统缓存使用率
 
 It is normal for memory usage to grow after system boot as the operating system uses available memory to cache the file system, improving performance. The principle is: If there is spare main memory, use it for something useful. This can distress naïve users who see the available free memory shrink to near zero sometime after boot. But it does not pose a problem for applications, as the kernel should be able to quickly free memory from the file system cache when applications need it.
 
+由于操作系统使用可用内存来缓存文件系统，从而提高了性能，因此在系统启动后内存使用量通常会增长。 原理是：如果有备用主内存，请将其用于有用的东西。 这会使那些在引导后的某个时间看到可用内存减少到接近零的幼稚用户感到困扰。 但这对应用程序没有问题，因为内核应能够在应用程序需要时从文件系统缓存中快速释放内存。
+
 For more about the various file system caches that can consume main memory, see Chapter 8, File Systems.
 
-### 7.2.7 Utilization and Saturation
+有关可以消耗主内存的各种文件系统缓存的更多信息，请参见第8章，文件系统。
+
+### 7.2.7 Utilization and Saturation 利用率和饱和度
 
 Main memory utilization can be calculated as used memory versus total memory. Memory used by the file system cache can be treated as unused, as it is available for reuse by applications.
+
+可以将主内存利用率计算为已用内存与总内存。 文件系统缓存使用的内存可以视为未使用，因为它可供应用程序重用。
 
 If demands for memory exceed the amount of main memory, main memory becomes saturated. The operating system may then free memory by employing paging, process swapping (if supported), and, on Linux, the OOM killer (described later). Any of these activities is an indicator of main memory saturation.
 
@@ -1541,7 +1614,7 @@ Various memory tunable parameters are described in the kernel source documentati
 Table 7.7 Example Linux memory tunables
 
 | Option                             | Default | Description                                                                                                                                                                                                              |
-| ---------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ---------------------------------- | ------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | vm.dirty_background_bytes          | 0       | Amount of dirty memory to trigger pdflush background write-back                                                                                                                                                          |
 | vm.dirty_background_ratio          | 10      | Percentage of dirty system memory to trigger pdflush background write-back                                                                                                                                               |
 | vm.dirty_bytes                     | 0       | Amount of dirty memory that causes a writing process to start write-back                                                                                                                                                 |
