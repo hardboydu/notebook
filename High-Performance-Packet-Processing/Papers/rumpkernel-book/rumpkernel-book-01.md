@@ -1,109 +1,176 @@
 # The Design and Implementation of the Anykernel and Rump Kernels - 01. Introduction
 
-In its classic role, an operating system is a computer program which abstracts the platform it runs on and provides services to application software. Applications in turn provide functionality that the user of the computer system is interested in. For the user to be satisfied, the operating system must therefore support both the platform and application software.
+The mission of the first edition of this book (2012) was to introduce the anykernel and rump kernels and motivate their existence. Additionally, we explored the characteristics of the technology through various experiments. The paramount, often criminally overlooked experiment was the one hiding in plain sight: is it possible to construct the system in a sustainable, real-world compatible fashion. That paramount experiment was shown to be a success, and that result has not changed since the original publication, only strengthened. The core technology is still almost identical to the one described in the original book.
 
-An operating system is understood to consist of the kernel, userspace libraries and utilities, although the exact division between these parts is not definitive in every operating system. The kernel, as the name says, contains the most fundamental routines of the operating system. In addition to low-level platform support and critical functionality such as thread scheduling and IPC, the kernel offers drivers, which abstract an underlying entity. Throughout this dissertation we will use the term driver in an extended sense which encompasses not only hardware device drivers, but additionally for example file system drivers and the TCP/IP network driver.
+本书第一版（2012年）的任务是介绍Anykernel和Rump内核并激发它们的存在。 此外，我们通过各种实验探索了该技术的特性。 最重要的，通常被犯罪分子忽视的实验是一个显而易见的隐匿现象：是否可以以一种可持续的，与现实世界兼容的方式构造该系统。 该最重要的实验被证明是成功的，并且自原始出版物以来，结果没有改变，只是得到了加强。 核心技术仍与原书中描述的技术几乎相同。
 
-Major contemporary operating systems follow the monolithic kernel model. Of popular general purpose operating systems, for example Linux, Windows and Mac OS X are regarded as monolithic kernel operating systems. A monolithic kernel means that the entire kernel is executed in a single privileged domain, as opposed to being spread out to multiple independent domains which communicate via message passing. The single privileged domain in turn means that all code in the kernel has full capability to directly control anything running on that particular system. Furthermore, the monolithic kernel does not inherently impose any technical restrictions for the structure of the kernel: a routine may call any other routine in the kernel and access all memory directly. However, like in most disciplines, a well-designed architecture is desirable. Therefore, even a monolithic kernel tends towards structure.
+This new edition has been written to account for the practical experiences from new use cases, many of which were proposed in the first edition, but which have since become reality.
 
-## 1.1 Challenges with the Monolithic Kernel
+编写此新版本是为了说明新用例的实践经验，其中许多是在第一版中提出的，但自那以后已成为现实。
 
-Despite its widespread popularity, we identified a number of suboptimal characteristics in monolithic kernels which we consider as the motivating problems for this dissertation:
+To start off, we will look at operating systems in general: what one is, how they developed throughout history, where they are now, what the problem is, and why the time is now ripe for change. After that, we will briefly introduce the Anykernel and Rump Kernels, and argue why they are part of the solution to the problem.
 
-1. **Weak security and robustness**. Since all kernel code runs in the same privileged domain, a single mistake can bring the whole system down. The fragile nature of the monolithic kernel is a long-standing problem to which all monolithic kernel operating systems are vulnerable.
-Bugs are an obvious manifestation of the problem, but there are more subtle issues to consider. For instance, widely used file system drivers are vulnerable against untrusted disk images [115]. This vulnerability is acknowledged in the manual page of the mount command for example on Linux: “It is possible for a corrupted file system to cause a crash”. The commonplace act of accessing untrusted removable media such as a USB stick or DVD disk with an in-kernel file system driver opens the entire system to a security vulnerability.
-2. **Limited possibilities for code reuse**. The code in a monolithic kernel is viewed to be an all-or-nothing deal due to a belief that everything is intertwined with everything else. This belief implies that features cannot be cherry-picked and put into use in other contexts and that the kernel drivers have value only when they are a part of the monolithic kernel. Examples include file systems [115] and networking [82].
-One manifestation of this belief is the reimplementation of kernel drivers for userspace. These reimplementations include TCP/IP stacks [27, 96] and file system drivers [2, 89, 105] <sup>1</sup> for the purposes of research, testing, teaching and application-level drivers. The common approaches for reimplementation are starting from scratch or taking a kernel driver and adjusting the code until the specific driver can run in userspace.
-If cherry-picking unmodified drivers were possible, kernel drivers could be directly used at application level. Code reuse would not only save the initial implementation effort, but more importantly it would save from having to maintain the second implementation.
-3. **Development and testing is convoluted**. This is a corollary of the previous point: in the general case testing involves booting up the whole operating system for each iteration. Not only is the bootup slow in itself, but when it is combined with the fact that an error may bring the entire system down, development cycles become long and batch mode regression testing is difficult. The difficulty of testing affects how much testing and quality assurance the final software product receives. Users are indirectly impacted: better testing produces a better system.
-Due to the complexity and slowness of in-kernel development, a common approach is to implement a prototype in userspace before porting the code to the kernel. For example FFS in BSD [70] and ZFS in Solaris [16] were implemented this way. This approach may bring additional work when the
-code is being moved into the kernel, as the support shim in userspace may not have fully emulated all kernel interfaces [70].
+首先，我们将总体上看待操作系统：什么是操作系统，它们在整个历史中是如何发展的，现在的位置，问题是什么，以及为什么现在是进行变革的时机成熟了。 之后，我们将简要介绍Anykernel和Rump Kernels，并争论为什么它们是解决问题的一部分。
 
-> <sup>1</sup> We emphasize that with file systems we do not mean FUSE (Filesystem in Userspace) [106]. FUSE provides a mechanism for attaching a file system driver as a microkernel style server, but does not provide the driver itself. The driver attached by FUSE may be an existing kernel driver which was reimplemented in userspace [2, 3].
+## 1.1 Operating Systems
 
-## 1.2 Researching Solutions
+The term operating system originally meant a system which aids computer operators in loading tapes and punchcards onto the computer [15]. We take a slightly more modern approach, and define an operating system as a collection of subroutines which allow application programs to run on a given platform. The platform can be for example a physical unit of hardware, or be virtually provisioned such as on the cloud. Additionally, an operating system may, for example, multiplex the platform for a number of applications, protect applications from each other, be distributed in nature, or provide an interface which is visually appealing to some people.
 
-One option for addressing problems in monolithic kernels is designing a better model and starting from scratch. Some examples of alternative kernel models include the microkernel [9, 43, 45, 64] Exokernel [33] and a partitioned kernel [12, 112]. The problem with starting from scratch is getting to the point of having enough support for external protocols to be a viable alternative for evaluation with real world applications. These external protocols include anything serviced by a driver and range from a networking stack to a POSIX interface. As the complexity of the operating environment and external restrictions grow, it is more and more difficult to start working on an operating system from scratch [92]. For a figure on the amount of code in a modern OS, we look at two subsystems in the Linux 3.3 kernel from March 2012. There are 1,001,218 physical lines of code for file system drivers in the fs subdirectory and 711,150 physical lines of code for networking drivers in the net subdirectory (the latter figure does not include NIC drivers, which are kept elsewhere in the source tree). For the sake of discussion, let us assume that a person who can write 100 lines of bugfree code each day writes all of those drivers. In that case, it will take over 46 years to produce the drivers in those subdirectories.
+术语“操作系统”最初是指帮助计算机操作员将磁带和打孔卡加载到计算机上的系统[15]。 我们采用稍微更现代的方法，并将操作系统定义为子例程的集合，这些子例程允许应用程序在给定平台上运行。 该平台可以是例如硬件的物理单元，也可以是虚拟提供的，例如在云上。 另外，操作系统可以例如为多个应用程序复用平台，相互保护应用程序，在本质上进行分布或提供在视觉上吸引某些人的界面。
 
-Even if there are resources to write a set of drivers from scratch, the drivers have not been tested in production in the real world when they are first put out. Studies show that new code contains the most faults [18, 91]. The faults do not exist because the code would have been poorly tested before release, but rather because it is not possible to anticipate every real world condition in a laboratory environment. We argue that real world use is the property that makes an existing driver base valuable, not just the fact that it exists.
+The majority of the operating system is made up of drivers, which abstract some underlying entity. For example, device drivers know which device registers to read and write for the desired result, file system drivers know which blocks contain which parts of which files, and so forth. In essence, a driver is a protocol translator, which transforms requests and responses to different representations.
 
-## 1.3 Thesis
+操作系统的大部分由驱动程序组成，这些驱动程序抽象了一些基础实体。 例如，设备驱动程序知道要读取和写入哪个设备寄存器以获得所需的结果，文件系统驱动程序知道哪些块包含哪些文件的哪些部分，依此类推。 本质上，驱动程序是协议转换器，它将请求和响应转换为不同的表示形式。
 
-We claim that it is possible to construct a flexible kernel architecture which solves the challenges listed in Section 1.1, and yet retain the monolithic kernel. Furthermore, it is possible to implement the flexible kernel architecture solely by good programming principles and without introducing levels of indirection which hinder the monolithic kernel’s performance characteristics. We show our claim to be true by an implementation for a BSD-derived open source monolithic kernel OS, NetBSD [87].
+There is nothing about protocol translation which dictates that a driver must be an integral part of an operating system as opposed to being part of application code. However, operating system drivers may also be used as a tool for imposing protection boundaries. For example, an operating system may require that applications access a storage device through the file system driver. The file system can then enforce that users are reading or writing only the storage blocks that they are supposed to have access to. As we shall see shortly, imposing privilege boundaries grew out of historic necessity when computers were few and the operating system was a tool to multiplex a single machine for many users.
 
-We define an anykernel to be an organization of kernel code which allows the kernel’s unmodified drivers to be run in various configurations such as application libraries and microkernel style servers, and also as part of a monolithic kernel. This approach leaves the configuration the driver is used in to be decided at runtime. For example, if maximal performance is required, the driver can be included in a monolithic kernel, but where there is reason to suspect stability or security, the driver can still be used as an isolated, non-privileged server where problems cannot compromised the entire system.
+协议转换没有什么要求驱动程序必须是操作系统的组成部分，而不是应用程序代码的一部分。 但是，操作系统驱动程序也可以用作施加保护边界的工具。 例如，操作系统可能要求应用程序通过文件系统驱动程序访问存储设备。 然后，文件系统可以强制用户正在读取或写入他们应该有权访问的存储块。 正如我们将很快看到的那样，当计算机很少且操作系统是为许多用户多路复用一台计算机的工具时，施加特权边界是出于历史的需要。
 
-An anykernel can be instantiated into units which virtualize the bare minimum support functionality for kernel drivers. We call these virtualized kernel instances rump kernels since they retain only a part of the original kernel. This minimalistic approach makes rump kernels fast to bootstrap (˜10ms) and introduces only a small memory overhead (˜1MB per instance). The implementation we present hosts rump kernels in unprivileged user processes on a POSIX host. The platform that the rump kernel is hosted on is called the host platform or host.
+### 1.1.1 Historical Perspective
 
-At runtime, a rump kernel can assume the role of an application library or that of a server. Programs requesting services from rump kernels are called rump kernel clients. Throughout this dissertation we use the shorthand client to denote rump kernel clients. We define three client types.
+Computers were expensive in the 1950’s and 1960’s. For example, the cost of the UNIVAC I in 1951 was just short of a million dollars. Accounting for inflation, that is approximately 9 million dollars in today’s money. Since it was desirable to keep expensive machines doing something besides idling, batch scheduling was used to feed new computations and keep idletime to a minimum.
 
-1. Local: the rump kernel is used in a library capacity. Like with any library, using the rump kernel as a library requires that the application is written to use APIs provided by a rump kernel. The main API for a local client is a system call API with the same call signatures as on a regular NetBSD system.
-For example, it is possible to use a kernel file system driver as a library in an application which interprets a file system image.
-2. Microkernel: the host routes client requests from regular processes to drivers running in isolated servers. Unmodified application binaries can be used.
-For example, it is possible to run a block device driver as a microkernel style server, with the kernel driver outside the privileged domain.
-3. Remote: the client and rump kernel are running in different containers (processes) with the client deciding which services to request from the rump kernel and which to request from the host kernel. For example, the client can use the TCP/IP networking services provided by a rump kernel. The kernel and client can exist either on the same host or on different hosts. In this model, both specifically written applications and unmodified applications can use services provided by a rump kernel. The API for specifically written applications is the same as for local clients.
-For example, it is possible to use an unmodified Firefox web browser with the TCP/IP code running in a rump kernel server.
+在1950年代和1960年代，计算机价格昂贵。 例如，1951年的UNIVAC I的成本只有一百万美元。 考虑到通货膨胀，按今天的汇率大约是900万美元。 由于希望让昂贵的机器执行除空闲之外的其他操作，因此使用批处理调度来提供新的计算并将空闲时间保持在最低限度。
 
-Each configuration contributes to solving our motivating problems:
+As most of us intuitively know, reaching the solution of a problem is easier if you are allowed to stumble around with constant feedback, as compared to a situation where you must have holistic clairvoyance over the entire scenario before you even start. The lack of near-instant feedback was a problem with batch systems. You submitted a job, context switched to something else, came back the next day, context switched back to your computation, and discovered your program was missing a comma.
 
-1. **Security and robustness**. When necessary, the use of a rump kernel will allow unmodified kernel drivers to be run as isolated microkernel servers while preserving the user experience. At other times the same driver code can be run in the original fashion as part of the monolithic kernel.
-2. **Code reuse**. A rump kernel may be used by an application in the same fashion as any other userlevel library. A local client can call any routine inside the rump kernel.
-3. **Development and testing**. The lightweight nature and safety properties of a rump kernel allow for safe testing of kernel code with iteration times in the millisecond range. The remote client model enables the creation of tests using familiar tools.
+正如我们大多数人凭直觉知道的那样，与允许您在不停地获得反馈的情况下绊倒相比，解决问题要容易得多，而在这种情况下，您甚至必须在开始之前就对整个情况进行全面的了解。 批处理系统存在缺乏即时反馈的问题。 您提交了一份工作，上下文切换到其他内容，第二天又回来，上下文切换回您的计算，发现您的程序缺少逗号。
 
-Our implementation supports rump kernels for file systems [55], networking [54] and device drivers [56]. Both synthetic benchmarks and real world data gathered from a period between 2007 and 2011 are used for the evaluation. We focus our efforts at drivers which do not depend on a physical backend being present. Out of hardware device drivers, support for USB drivers has been implemented and verified. We expect it is possible to support generic unmodified hardware device drivers in rump kernels by using previously published methods [62].
+To address the feedback problem, timesharing was invented. Users logged into a machine via a terminal and got the illusion of having the whole system to themselves. The timesharing operating system juggled between users and programs. Thereby, poetic justice was administered: the computer was now the one context-switching, not the human. Going from running one program at a time to running multiple at the “same” time required more complex control infrastructure. The system had to deal with issues such as hauling programs in and out of memory depending on if they were running or not (swapping), scheduling the tasks according to some notion of fairness, and providing users with private, permanent storage (file system). In other words, 50 years ago they had the key concepts of current operating systems figured out. What has happened since?
 
-## 1.4 Contributions
+为了解决反馈问题，发明了分时。 用户通过终端登录到一台机器上，并幻想自己拥有整个系统。 分时操作系统在用户和程序之间摇摆不定。 因此，管理了诗意的正义：计算机现在是上下文切换的一种，而不是人类的。 从一次运行一个程序到同时“运行”多个程序，需要更复杂的控制基础架构。 系统必须处理一些问题，例如根据程序是否在运行来将它们拖入内存或从内存中拖出（交换），根据某种公平性计划任务，以及为用户提供私有的永久存储（文件系统） 。 换句话说，50年前，他们已经弄清了当前操作系统的关键概念。 此后发生了什么事？
 
-The original contributions of this dissertation are as follows:
+### 1.1.2 And Where It Got Us
 
-1. The definition of an anykernel and a rump kernel.
-2. Showing that it is possible to implement the above in production quality code and maintain them in a real world monolithic kernel OS.
-3. Analysis indicating that the theory is generic and can be extended to other operating systems.
+The early timesharing systems isolated users from other users. The average general purpose operating system still does a decent job at isolating users from each other. However, that type of isolation does little good in a world which does not revolve around people logging into a timesharing system. The increasing problem is isolating the user from herself or himself. Ages ago, when you yourself wrote all of the programs you ran, or at least had a physical interaction possibility with the people who did, you could be reasonably certain that a program you ran did not try to steal your credit card numbers. These days, when you download a million lines of so-so trusted application code from the Internet, you have no idea of what happens when you run it on a traditional operating system.
 
-## 1.5 Dissertation Outline
+早期的分时系统将用户与其他用户隔离开。 一般的通用操作系统在隔离用户之间仍然做得不错。 但是，这种隔离在一个不以人们登录分时系统为中心的世界中并没有多大用处。 日益严重的问题是使用户与她自己或他自己隔离。 多年以前，当您自己编写了所运行的所有程序，或者至少与进行该操作的人有身体上的互动时，您可以合理地确定所运行的程序没有尝试窃取您的信用卡号码。 如今，当您从Internet下载百万行如此受信任的应用程序代码时，您不知道在传统操作系统上运行该代码会发生什么。
 
-Chapter 2 defines the concept of an anykernel and explains rump kernels. Chapter 3 discusses the implementation and provides microbenchmarks as supporting evidence for implementation decisions. Chapter 4 evaluates the solution. Chapter 5 looks at related work. Chapter 6 provides concluding remarks.
+The timesharing system also isolates the system and hardware components from the unprivileged user. In this age when everyone has their own hardware — virtual if not physical — that isolation vector is of questionable value. It is no longer a catastrophe if an unprivileged process binds to transport layer ports less than 1024. Everyone should consider reading and writing the network medium unlimited due to hardware no longer costing a million, regardless of what the operating system on some system does. The case for separate system and user software components is therefore no longer universal. Furthermore, the abstract interfaces which hide underlying power, especially that of modern I/O hardware, are insufficient for  high performance computing [45].
 
-## 1.6 Further Material
+分时系统还将系统和硬件组件与非特权用户隔离开。 在这个时代，每个人都有自己的硬件-虚拟的甚至不是物理的-隔离向量的价值值得怀疑。 如果没有特权的进程绑定到小于1024的传输层端口，这将不再是灾难。每个人都应该考虑无限地读写网络介质，因为硬件不再需要花费一百万美元，而与某些系统上的操作系统无关。 因此，用于单独的系统和用户软件组件的情况不再普遍。 此外，隐藏底层功能（尤其是现代 I/O硬件的功能）的抽象接口不足以实现高性能计算[45]。
 
-### 1.6.1 Source Code
+In other words, since the operating system does not protect the user from evil or provide powerful abstractions, it fails its mission in the modern world. Why do we keep on using such systems? Let us imagine the world of computing as a shape sorter. In the beginning, all holes were square: all computation was done on a million dollar machine sitting inside of a mountain. Square pegs were devised to fit the square holes, as one would logically expect. The advent of timesharing brought better square pegs, but it did so in the confines of the old scenario of the mountain machine. Then the world of computing diversified. We got personal computing, we got mobile devices, we got IoT, we got the cloud. Suddenly, we had round holes, triangular holes and the occasional trapezoid and rhombus. Yet, we are still fascinated by square-shaped pegs, and desperately try to cram them into every hole, regardless of if they fit or not.
 
-The implementation discussed in this dissertation can be found in source code form from the NetBSD CVS tree as of March 31st 2011 23:59UTC.
+换句话说，由于操作系统无法保护用户免受邪恶或提供强大的抽象，因此它无法履行其在现代世界中的使命。 为什么我们继续使用这种系统？ 让我们想象一下作为形状分类器的计算世界。 最初，所有的孔都是正方形的：所有的计算都是在山顶上的一百万美元机器上完成的。 正如人们所希望的那样，设计了方钉以适合方孔。 分时度假的到来带来了更好的方钉，但这是在山区机器的旧方案的范围内做到的。 然后，计算世界变得多样化。 我们有了个人计算，我们有了移动设备，我们有了物联网，我们有了云。 突然，我们有了圆孔，三角形孔以及不规则的梯形和菱形。 但是，我们仍然对方形的钉子着迷，并拼命尝试将它们塞入每个孔中，无论它们是否合适。
 
-NetBSD is an evolving open source project with hundreds of volunteers and continuous change. Any statement we make about NetBSD reflects solely the above timestamp and no other. It is most likely that statements will apply over a wide period of time, but it is up to the interested reader to verify if they apply to earlier or later dates.
+Why are we so fascinated with square-shaped pegs? What happens if we throw away the entire operating system? The first problem with that approach is, and it is a literal show-stopper, that applications will fail to run. Already in the late 1940’s computations used subroutine libraries [8]. The use of subroutine libraries has not diminished in the past 70 years, quite to the contrary. An incredible amount of application software keeping the Internet and the world running has been written against the POSIX-y interfaces offered by a selection of operating systems. No matter how much you do not need the obsolete features provided by the square peg operating system, you do want to keep your applications working.
 
-It is possible to retrieve the source tree with the following command:
+为什么我们对方形的钉子如此着迷？ 如果我们丢掉整个操作系统会怎样？ 这种方法的第一个问题是，应用程序将无法运行，并且它确实是一个显示障碍。 在1940年代后期，计算已使用子例程库[8]。 恰恰相反，在过去的70年中，子例程库的使用并未减少。 针对各种操作系统提供的POSIX-y接口编写了数量众多的应用软件，它们使Internet和整个世界保持运转。 无论您不需要多少方钉操作系统提供的过时功能，都希望保持应用程序正常运行。
 
-```sh
-cvs -d anoncvs@anoncvs.netbsd.org:/cvsroot co -D’20110331 2359UTC’ src
+From-scratch implementations of the services provided by operating systems are far from trivial undertakings. Just implementing the 20-or-so flags for the open() call in a real-world-bug-compatible way is far from trivial. Assuming you want to run an existing libc/application stack, you have to keep in mind that you still have roughly 199 system calls to go after open(). After you are done with the system calls, you then have to implement the actual components that the system calls act as an interface to: networking, file systems, device drivers, and various other driver stacks.
+
+从头开始实现操作系统提供的服务绝非易事。 仅仅以一种与现实世界中的错误兼容的方式为 `open()` 调用实现20左右的标志并不是一件容易的事。 假设您要运行现有的 libc/ 应用程序堆栈，则必须记住，在 `open()`之后仍需要进行大约199个系统调用。 完成系统调用后，您必须实现系统调用充当接口的实际组件：网络，文件系统，设备驱动程序以及各种其他驱动程序堆栈。
+
+After the completing the above steps for a from-scratch implementation, the most time-consuming part remains: testing your implementation in the real world and fixing it to work there. This step is also the most difficult one, since no amount of conformance to formal specification or testing in a laboratory is a substitute for being "bug-compatible" with the real world.
+
+在完成了从头开始实现的上述步骤之后，最耗时的部分仍然是：在现实世界中测试实现并将其修复以在其中工作。 这一步也是最困难的一步，因为对形式规范或实验室测试的任何符合都不能替代与现实世界的 “bug兼容” 。
+
+So in essence, we are fascinated by square-shaped pegs because our applications rest on the support provided by those pegs. That is why we are stuck in a rut and few remember to look at the map.
+
+因此，从本质上讲，我们对方形钉子着迷，因为我们的应用依靠这些钉子提供的支撑。 这就是为什么我们陷入困境，很少有人记得看地图的原因。
+
+### 1.1.3 What We Really Need
+
+We want applications to run. We need the operating system to adapt to the scenario the application is deployed in, not for the application to adapt to a 1950’s understanding of computing and hardware cost.
+
+我们希望应用程序运行。 我们需要操作系统适应于应用程序部署的场景，而不是为了适应1950年对计算和硬件成本的理解而适应的应用程序。
+
+Let us consider embedded systems. Your system consists of one trust-domain on one piece of hardware. There, you simply need at set of subroutines (drivers) to enable your application to run. You do not need any code which allows the single user, single-application system to act like a timesharing system with multiple users. However, for example the implementation of the TCP/IP driver can, assuming you do not want to scale to kilobyte-sized system or to the bleeding edge of performance, be the same as one for a multiuser system. After all, the TCP/IP protocols are standard, and therefore the protocol translation the driver needs to perform is also standard.
+
+让我们考虑嵌入式系统。 您的系统由一个硬件上的一个信任域组成。 在那里，您只需要一组子例程（驱动程序）即可使您的应用程序运行。 您不需要任何代码即可使单用户单应用程序系统像具有多个用户的分时系统一样工作。 但是，例如，假设您不想扩展到千字节大小的系统或性能的极限，TCP/IP 驱动程序的实现可以与多用户系统的实现相同。 毕竟，TCP/IP 协议是标准的，因此驱动程序需要执行的协议转换也是标准的。
+
+Let us consider the cloud and especially microservices running on the cloud. We can indeed run the services on top of a timesharing operating system, A paravirtualized timesharing OS takes time to bootstrap [26] and consumes resources even for the features which are not used by the microservice. OS virtualization via containers [27] provides better performance and resource consumption than paravirtualization [53, 57], but at the cost of putting millions of lines of code into the trusted computing base.
+
+让我们考虑云，尤其是在云上运行的微服务。 我们确实可以在分时操作系统上运行这些服务。半虚拟化分时OS会花一些时间进行引导[26]，甚至会消耗微服务未使用的功能。 通过容器进行的OS虚拟化[27]比半虚拟化[53，57]提供了更好的性能和资源消耗，但是是以将数百万行代码放入可信计算库中为代价的。
+
+Using timesharing systems en masse will allow applications to run in both cases, but not adapting to the scenario comes with a price. In effect, tradeoffs are made either for performance or security.
+
+整体上使用分时共享系统将允许应用程序在两种情况下运行，但不能适应这种情况带来的代价。 实际上，权衡是为了性能或安全性。
+
+## 1.2 The Anykernel and Rump Kernels
+
+This work is about how to move from the world of timesharing systems to the world of the future in a fashion in which applications continue to function. The two key terms are anykernel and rump kernel, both of which we will introduce and describe shortly.
+
+这项工作是关于如何以应用程序继续运行的方式从分时系统的世界过渡到未来的世界。 两个关键术语是Anykernel和Rump内核，我们将在短期内介绍和描述这两个关键术语。
+
+Applications need subroutines to work, and those subroutines are provided by operating systems. We call those subroutines drivers, and state that not only does a typical application require a large set of drivers, but also that those drivers are also non-trivial to write and maintain. While operating systems built around a timesharing model are rich in drivers due to having a lot of history behind them, they are not sufficient for the use cases required by the modern world. We need to start treating drivers as library-like components instead of requiring a separate implementation for each operating system. The library-approach will allow to build the software stack to suit the scenario, instead of having to build the scenario to suit the available operating systems.
+
+应用程序需要子例程才能工作，并且这些子例程由操作系统提供。 我们称这些子例程为驱动程序，并声明不仅典型的应用程序需要大量的驱动程序，而且这些驱动程序的编写和维护也很简单。 尽管基于分时共享模型构建的操作系统具有丰富的驱动程序，但它们背后已有许多历史，但对于现代世界所需要的用例而言，它们还不够。 我们需要开始将驱动程序视为类库组件，而不是为每个操作系统都要求单独的实现。 库方法将允许构建适用于方案的软件堆栈，而不必构建适用于可用操作系统的方案。
+
+The term anykernel was coined in response to the ever-increasing number of operating system models: monolithic kernel, microkernel, exokernel, multikernel, unikernel, etc. As the saying goes, creating something new is is 5% inspiration and 95% perspiration. While the inspiration required to come up with a new model should not be undervalued, after that 95% of the work for reaching a usable software stack remains. That 95% consists largely of the drivers. For example, even the most trivial cloud operating system requires a TCP/IP driver, and creating one from scratch or even porting one is far from trivial. The anykernel is a term describing a kernel type codebase from which drivers, the 95%, can be extracted and integrated to any operating system model — or at least near any — without porting and maintenance work.
+
+术语Anykernel是为响应不断增长的操作系统模型数量而创造的：整体内核，微内核，exokernel，多内核，unikernel等。俗话说，创造新事物是5％的灵感和95％的汗水 。 虽然提出新模型所需的灵感不应被低估，但在此之后，仍然需要95％的工作来获得可用的软件堆栈。 这95％的人主要是司机。 例如，即使是最琐碎的云操作系统也需要TCP/IP 驱动程序，并且从头创建一个甚至移植一个都不是很简单的。 Anykernel是描述内核类型代码库的一个术语，无需移植和维护工作，就可以从中提取95％的驱动程序并将其集成到任何操作系统模型（或至少接近于任何一种操作系统模型）。
+
+A rump kernel, as the name implies, is a timesharing style kernel from which portions have been removed. What remains are drivers and the basic support routines required for the drivers to function – synchronization, memory allocators, and so forth. What is gone are policies of thread scheduling, virtual memory, application processes, and so forth. Rump kernels have a well-defined (and small!) portability layer, so they are straightforward to integrate into various environments.
+
+臀部内核，顾名思义，是一种分时共享样式的内核，已从其中删除了部分内容。 剩下的是驱动程序以及驱动程序运行所需的基本支持例程–同步，内存分配器等。 不再涉及线程调度，虚拟内存，应用程序进程等策略。 臀部内核具有良好定义的（并且很小！）可移植性层，因此可以直接集成到各种环境中。
+
+![](./images/rumpbookv2-1.1.PNG)
+Figure 1.1: Relationship between key concepts: The anykernel allows driver components to be lifted out of the original source tree and rump kernels to be formed out of those drivers. Rump kernels can be used to build products and platforms; one example of a use case is illustrated.<br>图1.1：关键概念之间的关系：Anykernel允许将驱动程序组件从原始源代码树中取出，并在这些驱动程序中形成臀部内核。 臀部内核可用于构建产品和平台。 举例说明了一个用例。
+
+Figure 1.1 illustrates how a timesharing system, anykernel and rump kernel are related. The figure indeed illustrates only one example, and by extension, only one example platform for hosting rump kernels.
+
+图1.1说明了分时系统，anykernel和rump内核之间的关系。 该图确实仅示出了一个示例，并且通过扩展仅示出了一个用于托管臀部内核的示例平台。
+
+Throughout most of the technical discussion in this book we will consider a userspace program as the platform for hosting a rump kernel. There are two reasons why it is so. First, the original motivation for rump kernels back in 2007 was developing, debugging and testing kernel drivers. What better place to do it than in userspace? Second, userspace is in itself a "hosted" platform, and we do not have full control of for example the symbol namespace or the scheduler. Therefore, if rump kernels can work in userspace, they can also easily work on platforms which are custom-built to host rump kernels.
+
+在本书的大部分技术讨论中，我们都将用户空间程序视为托管臀部内核的平台。 这样做有两个原因。 首先，早在2007年，后备内核的最初动机就是开发，调试和测试内核驱动程序。 有比在用户空间中更好的地方吗？ 其次，用户空间本身就是一个“托管”平台，我们无法完全控制例如符号名称空间或调度程序。 因此，如果臀部内核可以在用户空间中工作，它们也可以轻松地在为宿主臀部内核而定制构建的平台上工作。
+
+The implementation we discuss is available in NetBSD. It is crucial to differentiate between the implementation being in NetBSD, and it being available as patches for NetBSD. The idea of the anykernel is that it is an inherent property of a code base, so as to keep things maintained. What, in fact, keeps the implementation working is NetBSD’s internal use of rump kernels for testing kernel drivers. This testing also allows NetBSD to provide better quality drivers, so there is clear synergy. However, we will not focus on the testing aspects in this book; if curious, see the first edition for more discussion on development and testing.
+
+NetBSD中提供了我们讨论的实现。 区分NetBSD中的实现与NetBSD的修补程序之间的区别至关重要。 Anykernel的想法是，它是代码库的固有属性，可以保持所有内容。 实际上，使实施保持正常运行的是NetBSD在内部使用臀部下的内核来测试内核驱动程序。 此测试还允许NetBSD提供更好的质量驱动程序，因此具有明显的协同作用。 但是，我们不会将重点放在本书的测试方面。 如果好奇，请参阅第一版，以获取有关开发和测试的更多讨论。
+
+## 1.3 Book Outline
+
+The remainder of the book is as follows. Chapter 2 defines the concept of the anykernel and rump kernels and Chapter 3 discusses the implementation and provides microbenchmarks as supporting evidence for implementation decisions. Essentially, the two previous chapters are a two-pass flight over the core subject. The intent is to give the reader a soft landing by first introducing the new concept in abstract terms, and then doing the same in terms of the implementation. That way, we can include discussion of worthwhile implementation details without confusing the high-level picture. If something is not clear from either chapter alone, the recommendation is to study the relevant text from the other one. If you read the first edition of this book, you may choose to only lightly skim these two chapters; the main ideas are the same as in the first edition.
+
+本书的其余部分如下。 第2章定义了Anykernel和Rump内核的概念，第3章讨论了实现，并提供了微基准作为实现决策的支持证据。 本质上，前两章是对核心主题的两次通过。 目的是通过首先以抽象术语介绍新概念，然后在实现方面进行相同的操作，以使读者有一个软着陆。 这样，我们可以包括有价值的实现细节的讨论，而不会混淆高级概貌。 如果仅从任一章中都不清楚，则建议研究另一章中的相关文本。 如果您阅读了本书的第一版，则可以选择仅略读这两个章节。 主要思想与第一版相同。
+
+Chapter 4 gives an overview of what we have built on top of rump kernels. A brief history of the project is presented in Chapter 5. The history chapter can be read first, last, or anywhere in between, or not at all. Finally, Chapter 6 provides concluding remarks.
+
+第4章概述了我们在臀部内核之上构建的内容。 第5章介绍了该项目的简要历史记录。历史记录章节可以首先阅读，最后阅读，或介于两者之间的任何地方阅读，或者根本不用阅读。 最后，第6章提供了结束语。
+
+### What this book is not
+
+This book is not a user manual. You will not learn how to use rump kernels in day-to-day operations from this book. However, you will gain a deep understanding of rump kernels which, when coupled with the user documentation, will give you superior knowledge of how to use rump kernels. Most of the user documentation is available as a wiki at http://wiki.rumpkernel.org/.
+
+这本书不是用户手册。 您将不会从本书中学到如何在日常操作中使用臀部内核。 但是，您将对臀部内核有深入的了解，当与用户文档一起使用时，将为您提供有关如何使用臀部内核的高级知识。 大多数用户文档可在http://wiki.rumpkernel.org/上以Wiki的形式获得。
+
+## 1.4 Further Material
+
+In general, further material is reachable from the rump kernel project website at http://rumpkernel.org/.
+
+通常，可以从臀部内核项目网站http://rumpkernel.org/获得更多资料。
+
+### 1.4.1 Source Code
+
+The NetBSD source files and their respective development histories are available for study from repository provided by the NetBSD project, e.g. via the web interface at cvsweb.NetBSD.org. These files are most relevant for the discussion in Chapter 2 and Chapter 3.
+
+可以从NetBSD项目提供的存储库中研究NetBSD源文件及其各自的发展历史，例如 通过cvsweb.NetBSD.org上的Web界面。 这些文件与第2章和第3章中的讨论最相关。
+
+The easiest way to fetch the latest NetBSD source code in bulk is to run the following commands (see Section 4.1.4 for further information):
+
+批量获取最新NetBSD源代码的最简单方法是运行以下命令（有关更多信息，请参见第4.1.4节）：
+
+```bash
+git clone http://repo.rumpkernel.org/src-netbsd
+cd src-netbsd
+git checkout all-src
 ```
 
-Whenever we refer to source file, we implicitly assume the src directory to be a part of the path, i.e. `sys/kern/init_main.c` means `src/sys/kern/init_main.c`.
+Additionally, there is infrastructure to support building rump kernels for various platforms hosted at http://repo.rumpkernel.org/. The discussion in Chapter 4 is mostly centered around source code available from that location.
 
-For simplicity, the above command checks out the entire NetBSD operating system source tree instead of attempting to cherry-pick only the relevant code. The checkout will require approximately 1.1GB of disk space. Most of the code relevant to this document resides under `sys/rump`, but relevant code can be found under other paths as well, such as `tests` and `lib`.
-
-Diffs in Appendix C detail where the above source tree differs from the discussion in this dissertation.
-
-The project was done in small increments in the NetBSD source with almost daily changes. The commits are available for study from repository provided by the NetBSD project, e.g. via the web interface at cvsweb.NetBSD.org.
-
-#### NetBSD Release Model
-
-We use NetBSD release cycle terminology throughout this dissertation. The following contains an explanation of the NetBSD release model. It is a synopsis of the information located at http://www.NetBSD.org/releases/release-map.html.
-
-The main development branch or *HEAD* of NetBSD is known as *NetBSD-current* or, if NetBSD is implied, simply *-current*. The source code used in this dissertation is therefore *-current* from the aforementioned date.
-
-Release branches are created from -current and are known by their major number, for example NetBSD 5. Release branches get bug fixes and minor features, and releases are cut from them at suitable dates. Releases always contain one or more minor numbers, e.g. NetBSD 5.0.1. The first major branch after March 31st is NetBSD 6 and therefore the first release to potentially contain this work is NetBSD 6.0.
-
-A *-current* snapshot contains a kernel API/ABI version. The version is incremented only when an interface changes. The kernel version corresponding to March 31st is 5.99.48. While this version number stands for any -current snapshot between March 9th and April 11th 2011, whenever 5.99.48 is used in this dissertation, it stands for *-current* at 20110331.
+另外，在 http://repo.rumpkernel.org/ 上托管的基础架构可支持为各种平台构建臀部内核。 第4章中的讨论主要围绕可从该位置获得的源代码进行。
 
 #### Code examples
 
-This dissertation includes code examples from the NetBSD source tree. All such examples are copyright of their respective owners and are not public domain. If pertinent, please check the full source for further information about the licensing and copyright of each such example.
+This book includes code examples from the NetBSD source tree. All such examples are copyright of their respective owners and are not public domain. If pertinent, please check the full source for further information about the licensing and copyright of each such example.
 
-### 1.6.2 Manual Pages
+本书包括NetBSD源代码树中的代码示例。 所有此类示例均为其各自所有者的版权，而不是公共领域。 如果相关，请检查完整的源，以获取有关每个此类示例的许可和版权的更多信息。
 
-Unix-style manual pages for interfaces described in this dissertation are available in Appendix A. The manual pages are taken verbatim from the NetBSD 5.99.48 distribution.
+### 1.4.2 Manual Pages
 
-### 1.6.3 Tutorial
+Various manual pages are cited in the document. They are available as part of the NetBSD distribution, or via the web interface at http://man.NetBSD.org/.
 
-Appendix B contains a hands-on tutorial. It walks through various use cases where drivers are virtualized, such as encrypting a file system image using the kernel crypto driver and running applications against virtual userspace TCP/IP stacks. The tutorial uses standard applications and does not require writing code or compiling special binaries.
+文档中引用了各种手册页。 它们可以作为NetBSD发行版的一部分，也可以通过Web界面（http://man.NetBSD.org/）获得。
